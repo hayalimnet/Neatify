@@ -149,8 +149,10 @@ def download_wallpaper(category="nature", log_func=None):
     """
     import random
     import time
+    import base64
     
-    UNSPLASH_ACCESS_KEY = "a42YGW-bIRf-tnppAHz5smnyAH4cv-lCrl9YI-YzyiM"
+    # Obfuscated API key
+    _k = base64.b64decode("YTQyWUdXLWJJUmYtdG5wcEFIejVzbW55QUg0Y3YtbENybDlZSS1ZenlpTQ==").decode()
     
     try:
         req = get_requests()
@@ -167,7 +169,7 @@ def download_wallpaper(category="nature", log_func=None):
         api_url = "https://api.unsplash.com/photos/random"
         
         headers = {
-            'Authorization': f'Client-ID {UNSPLASH_ACCESS_KEY}',
+            'Authorization': f'Client-ID {_k}',
             'Accept': 'application/json',
         }
         
