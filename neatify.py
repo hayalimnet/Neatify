@@ -5,8 +5,16 @@ import shutil
 import pathlib
 import stat
 import sys
-import ctypes
 import threading
+import platform
+
+# Platform detection
+IS_WINDOWS = platform.system() == "Windows"
+IS_LINUX = platform.system() == "Linux"
+
+# Only import ctypes on Windows
+if IS_WINDOWS:
+    import ctypes
 
 # Lazy import - speeds up app startup
 requests = None
@@ -19,9 +27,12 @@ def get_requests():
 
 # --- ADMIN CHECK ---
 def is_admin():
-    """Check for Windows administrator privileges"""
+    """Check for administrator/root privileges"""
     try:
-        return ctypes.windll.shell32.IsUserAnAdmin()
+        if IS_WINDOWS:
+            return ctypes.windll.shell32.IsUserAnAdmin()
+        else:
+            return os.geteuid() == 0
     except:
         return False
 
@@ -33,26 +44,60 @@ def resource_path(relative_path):
     return os.path.join(os.path.abspath("."), relative_path)
 
 # --- SETTINGS AND PATHS ---
-USER_PROFILE = os.environ.get('USERPROFILE', '')
-LOCAL_APP_DATA = os.environ.get('LOCALAPPDATA', os.path.join(USER_PROFILE, 'AppData', 'Local'))
-ROAMING_APP_DATA = os.environ.get('APPDATA', os.path.join(USER_PROFILE, 'AppData', 'Roaming'))
-
-TARGET_DIRS = {
-    "System Temp": r'C:\Windows\Temp',
-    "User Temp": os.path.join(LOCAL_APP_DATA, 'Temp'),
-    "Prefetch": r'C:\Windows\Prefetch',
-    "Logs": r'C:\Windows\Logs'
-}
-
-BROWSER_PATHS = {
-    "Chrome": os.path.join(LOCAL_APP_DATA, r"Google\Chrome\User Data"),
-    "Edge": os.path.join(LOCAL_APP_DATA, r"Microsoft\Edge\User Data"),
-    "Brave": os.path.join(LOCAL_APP_DATA, r"BraveSoftware\Brave-Browser\User Data"),
-    "Opera": os.path.join(ROAMING_APP_DATA, r"Opera Software\Opera Stable"),
-    "Opera GX": os.path.join(ROAMING_APP_DATA, r"Opera Software\Opera GX Stable")
-}
-
-FIREFOX_PATH = os.path.join(ROAMING_APP_DATA, r"Mozilla\Firefox\Profiles")
+if IS_WINDOWS:
+    USER_PROFILE = os.environ.get('USERPROFILE', '')
+    LOCAL_APP_DATA = os.environ.get('LOCALAPPDATA', os.path.join(USER_PROFILE, 'AppData', 'Local'))
+    ROAMING_APP_DATA = os.environ.get('APPDATA', os.path.join(USER_PROFILE, 'AppData', 'Roaming'))
+    
+    TARGET_DIRS = {
+        "System Temp": r'C:\Windows\Temp',
+        "User Temp": os.path.join(LOCAL_APP_DATA, 'Temp'),
+        "Prefetch": r'C:\Windows\Prefetch',
+        "Logs": r'C:\Windows\Logs'
+    }
+    
+    BROWSER_PATHS = {
+        "Chrome": os.path.join(LOCAL_APP_DATA, r"Google\Chrome\User Data"),
+        "Edge": os.path.join(LOCAL_APP_DATA, r"Microsoft\Edge\User Data"),
+        "Brave": os.path.join(LOCAL_APP_DATA, r"BraveSoftware\Brave-Browser\User Data"),
+        "Opera": os.path.join(ROAMING_APP_DATA, r"Opera Software\Opera Stable"),
+        "Opera GX": os.path.join(ROAMING_APP_DATA, r"Opera Software\Opera GX Stable")
+    }
+    
+    FIREFOX_PATH = os.path.join(ROAMING_APP_DATA, r"Mozilla\Firefox\Profiles")
+    DESKTOP_PATH = os.path.join(USER_PROFILE, 'Desktop')
+    
+else:  # Linux
+    USER_PROFILE = os.path.expanduser('~')
+    LOCAL_APP_DATA = os.path.join(USER_PROFILE, '.local', 'share')
+    ROAMING_APP_DATA = os.path.join(USER_PROFILE, '.config')
+    
+    TARGET_DIRS = {
+        "System Temp": '/tmp',
+        "User Cache": os.path.join(USER_PROFILE, '.cache'),
+        "Thumbnails": os.path.join(USER_PROFILE, '.cache', 'thumbnails'),
+        "Logs": '/var/log'
+    }
+    
+    BROWSER_PATHS = {
+        "Chrome": os.path.join(ROAMING_APP_DATA, 'google-chrome'),
+        "Chromium": os.path.join(ROAMING_APP_DATA, 'chromium'),
+        "Brave": os.path.join(ROAMING_APP_DATA, 'BraveSoftware', 'Brave-Browser'),
+        "Opera": os.path.join(ROAMING_APP_DATA, 'opera'),
+        "Vivaldi": os.path.join(ROAMING_APP_DATA, 'vivaldi')
+    }
+    
+    FIREFOX_PATH = os.path.join(USER_PROFILE, '.mozilla', 'firefox')
+    DESKTOP_PATH = os.path.join(USER_PROFILE, 'Desktop')
+    
+    # Also check XDG desktop location
+    try:
+        import subprocess
+        result = subprocess.run(['xdg-user-dir', 'DESKTOP'], capture_output=True, text=True)
+        if result.returncode == 0 and result.stdout.strip():
+            DESKTOP_PATH = result.stdout.strip()
+    except:
+        pass
 
 # Browser files/folders to delete (CACHE ONLY - safe)
 # Note: Cookies, Login Data and other sensitive files are NOT included
@@ -81,53 +126,114 @@ DESKTOP_RULES = {
     'Other': ['.rf', '.torrent', '.nfo', '.srt', '.sub']
 }
 
+# Linux: Add shell scripts and AppImage to Programs
+if IS_LINUX:
+    DESKTOP_RULES['Programs'] = ['.sh', '.AppImage', '.run', '.deb', '.rpm', '.snap']
+
 # --- HELPER FUNCTIONS ---
+def get_trash_path():
+    """Get trash/recycle bin path for current platform"""
+    if IS_LINUX:
+        return os.path.join(USER_PROFILE, '.local', 'share', 'Trash')
+    return None
+
 def recycle_bin_size():
-    """Calculate total file size in Recycle Bin"""
-    try:
-        from ctypes import windll, pointer, Structure, c_ulonglong, c_ulong
-        
-        class SHQUERYRBINFO(Structure):
-            _fields_ = [
-                ("cbSize", c_ulong),
-                ("i64Size", c_ulonglong),
-                ("i64NumItems", c_ulonglong)
-            ]
-        
-        info = SHQUERYRBINFO()
-        info.cbSize = 24  # sizeof(SHQUERYRBINFO)
-        
-        # SHQueryRecycleBin - None for all drives
-        result = windll.shell32.SHQueryRecycleBinW(None, pointer(info))
-        
-        if result == 0:  # S_OK
-            return info.i64Size, info.i64NumItems
-        return 0, 0
-    except Exception:
-        return 0, 0
+    """Calculate total file size in Recycle Bin/Trash"""
+    if IS_WINDOWS:
+        try:
+            from ctypes import windll, pointer, Structure, c_ulonglong, c_ulong
+            
+            class SHQUERYRBINFO(Structure):
+                _fields_ = [
+                    ("cbSize", c_ulong),
+                    ("i64Size", c_ulonglong),
+                    ("i64NumItems", c_ulonglong)
+                ]
+            
+            info = SHQUERYRBINFO()
+            info.cbSize = 24  # sizeof(SHQUERYRBINFO)
+            
+            # SHQueryRecycleBin - None for all drives
+            result = windll.shell32.SHQueryRecycleBinW(None, pointer(info))
+            
+            if result == 0:  # S_OK
+                return info.i64Size, info.i64NumItems
+            return 0, 0
+        except Exception:
+            return 0, 0
+    else:  # Linux
+        try:
+            trash_path = get_trash_path()
+            files_path = os.path.join(trash_path, 'files')
+            if not os.path.exists(files_path):
+                return 0, 0
+            
+            total_size = 0
+            total_items = 0
+            for item in os.listdir(files_path):
+                item_path = os.path.join(files_path, item)
+                total_items += 1
+                if os.path.isfile(item_path):
+                    total_size += os.path.getsize(item_path)
+                elif os.path.isdir(item_path):
+                    for root, dirs, files in os.walk(item_path):
+                        for f in files:
+                            try:
+                                total_size += os.path.getsize(os.path.join(root, f))
+                            except:
+                                pass
+            return total_size, total_items
+        except Exception:
+            return 0, 0
 
 def empty_recycle_bin(log_func=None):
-    """Empty Windows Recycle Bin"""
-    try:
-        # SHEmptyRecycleBin flags:
-        # SHERB_NOCONFIRMATION = 0x00000001
-        # SHERB_NOPROGRESSUI = 0x00000002  
-        # SHERB_NOSOUND = 0x00000004
-        flags = 0x00000001 | 0x00000002 | 0x00000004  # Silent, no confirmation, no progress
-        
-        result = ctypes.windll.shell32.SHEmptyRecycleBinW(None, None, flags)
-        
-        if result == 0:  # S_OK
-            return True
-        elif result == -2147418113:  # S_FALSE (already empty)
+    """Empty Recycle Bin (Windows) or Trash (Linux)"""
+    if IS_WINDOWS:
+        try:
+            # SHEmptyRecycleBin flags:
+            # SHERB_NOCONFIRMATION = 0x00000001
+            # SHERB_NOPROGRESSUI = 0x00000002  
+            # SHERB_NOSOUND = 0x00000004
+            flags = 0x00000001 | 0x00000002 | 0x00000004  # Silent, no confirmation, no progress
+            
+            result = ctypes.windll.shell32.SHEmptyRecycleBinW(None, None, flags)
+            
+            if result == 0:  # S_OK
+                return True
+            elif result == -2147418113:  # S_FALSE (already empty)
+                if log_func:
+                    log_func("   ℹ️ Recycle Bin is already empty")
+                return True
+            return False
+        except Exception as e:
             if log_func:
-                log_func("   ℹ️ Recycle Bin is already empty")
-            return True
-        return False
-    except Exception as e:
-        if log_func:
-            log_func(f"   ⚠️ Could not empty Recycle Bin: {type(e).__name__}")
-        return False
+                log_func(f"   ⚠️ Could not empty Recycle Bin: {type(e).__name__}")
+            return False
+    else:  # Linux
+        try:
+            trash_path = get_trash_path()
+            files_path = os.path.join(trash_path, 'files')
+            info_path = os.path.join(trash_path, 'info')
+            
+            deleted = 0
+            # Delete files in trash
+            if os.path.exists(files_path):
+                for item in os.listdir(files_path):
+                    item_path = os.path.join(files_path, item)
+                    if safe_delete(item_path, log_func):
+                        deleted += 1
+            
+            # Delete .trashinfo files
+            if os.path.exists(info_path):
+                for item in os.listdir(info_path):
+                    item_path = os.path.join(info_path, item)
+                    safe_delete(item_path)
+            
+            return deleted > 0 or not os.listdir(files_path) if os.path.exists(files_path) else True
+        except Exception as e:
+            if log_func:
+                log_func(f"   ⚠️ Could not empty Trash: {type(e).__name__}")
+            return False
 
 # --- WALLPAPER SETTINGS ---
 WALLPAPER_CATEGORIES = {
@@ -159,9 +265,7 @@ def download_wallpaper(category="nature", log_func=None):
         req = get_requests()
         
         # Get screen resolution
-        user32 = ctypes.windll.user32
-        width = user32.GetSystemMetrics(0)
-        height = user32.GetSystemMetrics(1)
+        width, height = get_screen_resolution()
         
         if log_func:
             log_func(f"   📷 Searching '{category}' for {width}x{height}...")
@@ -220,7 +324,10 @@ def download_wallpaper(category="nature", log_func=None):
             return None
         
         # Save to temp file
-        wallpaper_dir = os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Neatify')
+        if IS_WINDOWS:
+            wallpaper_dir = os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Neatify')
+        else:
+            wallpaper_dir = os.path.join(USER_PROFILE, '.local', 'share', 'neatify')
         os.makedirs(wallpaper_dir, exist_ok=True)
         
         wallpaper_path = os.path.join(wallpaper_dir, 'wallpaper.jpg')
@@ -248,34 +355,123 @@ def download_wallpaper(category="nature", log_func=None):
                 log_func(f"   ⚠️ Error: {error_type}")
         return None
 
+def get_screen_resolution():
+    """Get screen resolution (cross-platform)"""
+    if IS_WINDOWS:
+        user32 = ctypes.windll.user32
+        return user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+    else:
+        # Try xrandr on Linux
+        try:
+            import subprocess
+            result = subprocess.run(['xrandr'], capture_output=True, text=True)
+            for line in result.stdout.split('\n'):
+                if ' connected' in line and 'primary' in line:
+                    # Find resolution like "1920x1080+0+0"
+                    parts = line.split()
+                    for part in parts:
+                        if 'x' in part and '+' in part:
+                            res = part.split('+')[0]
+                            w, h = res.split('x')
+                            return int(w), int(h)
+        except:
+            pass
+        return 1920, 1080  # Default fallback
+
 def set_wallpaper(image_path, log_func=None):
     """
-    Change Windows desktop wallpaper.
+    Change desktop wallpaper (cross-platform).
     """
-    try:
-        SPI_SETDESKWALLPAPER = 0x0014
-        SPIF_UPDATEINIFILE = 0x01
-        SPIF_SENDCHANGE = 0x02
-        
-        result = ctypes.windll.user32.SystemParametersInfoW(
-            SPI_SETDESKWALLPAPER, 
-            0, 
-            image_path, 
-            SPIF_UPDATEINIFILE | SPIF_SENDCHANGE
-        )
-        
-        if result:
+    if IS_WINDOWS:
+        try:
+            SPI_SETDESKWALLPAPER = 0x0014
+            SPIF_UPDATEINIFILE = 0x01
+            SPIF_SENDCHANGE = 0x02
+            
+            result = ctypes.windll.user32.SystemParametersInfoW(
+                SPI_SETDESKWALLPAPER, 
+                0, 
+                image_path, 
+                SPIF_UPDATEINIFILE | SPIF_SENDCHANGE
+            )
+            
+            if result:
+                if log_func:
+                    log_func("   ✅ Wallpaper changed!")
+                return True
+            else:
+                if log_func:
+                    log_func("   ⚠️ Could not set wallpaper")
+                return False
+        except Exception as e:
             if log_func:
-                log_func("   ✅ Wallpaper changed!")
-            return True
-        else:
-            if log_func:
-                log_func("   ⚠️ Could not set wallpaper")
+                log_func(f"   ⚠️ Error: {type(e).__name__}")
             return False
-    except Exception as e:
-        if log_func:
-            log_func(f"   ⚠️ Error: {type(e).__name__}")
-        return False
+    else:  # Linux
+        try:
+            import subprocess
+            
+            # Try GNOME/gsettings first (most common)
+            try:
+                subprocess.run([
+                    'gsettings', 'set', 'org.gnome.desktop.background', 'picture-uri',
+                    f'file://{image_path}'
+                ], check=True, capture_output=True)
+                subprocess.run([
+                    'gsettings', 'set', 'org.gnome.desktop.background', 'picture-uri-dark',
+                    f'file://{image_path}'
+                ], capture_output=True)
+                if log_func:
+                    log_func("   ✅ Wallpaper changed!")
+                return True
+            except:
+                pass
+            
+            # Try KDE/Plasma
+            try:
+                script = f'''
+var allDesktops = desktops();
+for (i=0;i<allDesktops.length;i++) {{
+    d = allDesktops[i];
+    d.wallpaperPlugin = "org.kde.image";
+    d.currentConfigGroup = Array("Wallpaper", "org.kde.image", "General");
+    d.writeConfig("Image", "file://{image_path}")
+}}
+'''
+                subprocess.run(['qdbus', 'org.kde.plasmashell', '/PlasmaShell',
+                              'org.kde.PlasmaShell.evaluateScript', script],
+                              check=True, capture_output=True)
+                if log_func:
+                    log_func("   ✅ Wallpaper changed!")
+                return True
+            except:
+                pass
+            
+            # Try feh (lightweight WMs like i3, bspwm)
+            try:
+                subprocess.run(['feh', '--bg-fill', image_path], check=True, capture_output=True)
+                if log_func:
+                    log_func("   ✅ Wallpaper changed!")
+                return True
+            except:
+                pass
+            
+            # Try nitrogen
+            try:
+                subprocess.run(['nitrogen', '--set-zoom-fill', image_path], check=True, capture_output=True)
+                if log_func:
+                    log_func("   ✅ Wallpaper changed!")
+                return True
+            except:
+                pass
+            
+            if log_func:
+                log_func("   ⚠️ Could not set wallpaper (unsupported DE)")
+            return False
+        except Exception as e:
+            if log_func:
+                log_func(f"   ⚠️ Error: {type(e).__name__}")
+            return False
 
 def format_size(byte_size):
     """Convert bytes to human readable format"""
@@ -427,9 +623,10 @@ class AssistantGUI(ctk.CTk):
         
         # Admin warning
         if not is_admin():
+            admin_text = "⚠️ Run as Administrator for full cleaning" if IS_WINDOWS else "⚠️ Run as root for full cleaning"
             self.admin_label = ctk.CTkLabel(
                 self, 
-                text="⚠️ Run as Administrator for full cleaning",
+                text=admin_text,
                 font=("Segoe UI", 12),
                 text_color="#f39c12"
             )
@@ -468,9 +665,10 @@ class AssistantGUI(ctk.CTk):
         self.cb_desktop.grid(row=0, column=2, padx=10, pady=15)
 
         self.var_recycle_bin = ctk.BooleanVar(value=True)
+        trash_label = "🗑️ Empty Recycle Bin" if IS_WINDOWS else "🗑️ Empty Trash"
         self.cb_recycle_bin = ctk.CTkCheckBox(
             self.options_frame, 
-            text="🗑️ Empty Recycle Bin", 
+            text=trash_label, 
             variable=self.var_recycle_bin,
             font=("Segoe UI", 13)
         )
@@ -616,7 +814,7 @@ class AssistantGUI(ctk.CTk):
             # Desktop analysis
             if self.var_desktop.get():
                 self.log("🖥️ Scanning desktop...")
-                d_path = os.path.join(USER_PROFILE, 'Desktop')
+                d_path = DESKTOP_PATH
                 if os.path.exists(d_path):
                     file_count = len([f for f in os.listdir(d_path) if os.path.isfile(os.path.join(d_path, f))])
                     empty_folder_count = len([d for d in os.listdir(d_path) 
@@ -627,15 +825,16 @@ class AssistantGUI(ctk.CTk):
                         self.log(f"   • Empty folders to delete: {empty_folder_count}")
                     self.log("")
             
-            # Recycle Bin analysis
+            # Recycle Bin / Trash analysis
             if self.var_recycle_bin.get():
-                self.log("🗑️ Scanning Recycle Bin...")
+                trash_name = "Recycle Bin" if IS_WINDOWS else "Trash"
+                self.log(f"🗑️ Scanning {trash_name}...")
                 bin_size, bin_count = recycle_bin_size()
                 if bin_count > 0:
                     self.log(f"   • {int(bin_count)} items, {format_size(bin_size)}")
                     total += bin_size
                 else:
-                    self.log("   • Recycle Bin is empty")
+                    self.log(f"   • {trash_name} is empty")
                 self.log("")
             
             self.log("=" * 45)
@@ -662,7 +861,7 @@ class AssistantGUI(ctk.CTk):
         if self.var_desktop.get():
             selections.append("Desktop organization")
         if self.var_recycle_bin.get():
-            selections.append("Empty Recycle Bin")
+            selections.append("Empty Recycle Bin" if IS_WINDOWS else "Empty Trash")
         
         if not selections:
             messagebox.showwarning("Warning", "Please select at least one option.")
@@ -728,7 +927,7 @@ class AssistantGUI(ctk.CTk):
 
             if self.var_desktop.get():
                 self.log("🖥️ Organizing desktop...")
-                d_path = os.path.join(USER_PROFILE, 'Desktop')
+                d_path = DESKTOP_PATH
                 if os.path.exists(d_path):
                     moved = 0
                     deleted_folders = 0
@@ -766,15 +965,16 @@ class AssistantGUI(ctk.CTk):
                         self.log(f"   ✓ {deleted_folders} empty folders deleted")
                     self.log("")
 
-            # Empty Recycle Bin
+            # Empty Recycle Bin / Trash
             if self.var_recycle_bin.get():
-                self.log("🗑️ Emptying Recycle Bin...")
+                trash_name = "Recycle Bin" if IS_WINDOWS else "Trash"
+                self.log(f"🗑️ Emptying {trash_name}...")
                 bin_size, bin_count = recycle_bin_size()
                 if bin_count > 0:
                     if empty_recycle_bin(self.log):
                         self.log(f"   ✓ {int(bin_count)} items deleted ({format_size(bin_size)})")
                 else:
-                    self.log("   ℹ️ Recycle Bin is already empty")
+                    self.log(f"   ℹ️ {trash_name} is already empty")
                 self.log("")
 
             self.log("=" * 45)
