@@ -12,6 +12,13 @@ dist/
 *.dist/
 *.onefile-build/
 
+# Build scripts (not needed for users)
+build_neatify.bat
+exe_olustur.bat
+exe_olustur.py
+icon_olustur.py
+version_info.txt
+
 # Python cache
 __pycache__/
 *.py[cod]
