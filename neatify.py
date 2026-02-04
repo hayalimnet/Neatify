@@ -149,15 +149,11 @@ def download_wallpaper(category="nature", log_func=None):
     """
     import random
     import time
+    import base64
     
-    # Get API key from environment variable
-    _k = os.environ.get('UNSPLASH_KEY', '')
-    
-    if not _k:
-        if log_func:
-            log_func("   ⚠️ Unsplash API key not found")
-            log_func("   Set UNSPLASH_KEY environment variable")
-        return None
+    # Default key (obfuscated) - user can override with UNSPLASH_KEY env variable
+    _default = base64.b64decode("YTQyWUdXLWJJUmYtdG5wcEFIejVzbW55QUg0Y3YtbENybDlZSS1ZenlpTQ==").decode()
+    _k = os.environ.get('UNSPLASH_KEY', _default)
     
     try:
         req = get_requests()
