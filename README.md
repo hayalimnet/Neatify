@@ -25,8 +25,8 @@ A cross-platform PC cleanup and desktop organizer tool.
 
 **Quick Install (Ubuntu/Debian):**
 ```bash
-# One-liner: download and run
-curl -sSL https://raw.githubusercontent.com/hayalimnet/Neatify/main/neatify.py -o neatify.py && python3 neatify.py
+# One-liner: install deps + download + run
+sudo apt install -y python3-tk && pip3 install customtkinter requests && curl -sSL https://raw.githubusercontent.com/hayalimnet/Neatify/main/neatify.py -o neatify.py && python3 neatify.py
 ```
 
 **Or step by step:**
