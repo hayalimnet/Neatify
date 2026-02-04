@@ -28,7 +28,7 @@ For Developers (Source Code)
 Bash
 
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/Neatify.git
+git clone https://github.com/hayalimnet/Neatify.git
 
 # Install dependencies
 pip install customtkinter requests
