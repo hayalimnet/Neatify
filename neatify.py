@@ -1005,7 +1005,12 @@ class AssistantGUI(ctk.CTk):
         dialog.geometry("400x500")
         dialog.resizable(False, False)
         dialog.transient(self)
-        dialog.grab_set()
+        
+        # On Linux, wait for window to be visible before grab_set
+        if IS_LINUX:
+            dialog.after(100, lambda: dialog.grab_set())
+        else:
+            dialog.grab_set()
         
         # Set icon
         try:
