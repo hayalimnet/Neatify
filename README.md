@@ -1,45 +1,28 @@
-🚀 Neatify: Smart Windows Cleanup & Desktop Organizer
+# ✨ Neatify
 
-Neatify is a lightweight, modern, and powerful Python-based tool designed to keep your Windows system clean and your desktop organized. Beyond just deleting temporary files, it beautifies your workspace with high-quality wallpapers from Unsplash.
-✨ Features
+A simple Windows cleanup and desktop organizer tool.
 
-    🔍 System Cleanup: Scans and removes junk from System Temp, User Temp, Prefetch, and Log directories.
+## Features
 
-    🌐 Browser Optimization: Safely clears cache and temporary data for Chrome, Edge, Brave, and Opera.
+- 🗂️ **System Cleanup** - Removes temp files, prefetch, and logs
+- 🌐 **Browser Cleanup** - Clears cache for Chrome, Edge, Brave, Opera
+- 🖥️ **Desktop Organizer** - Sorts files into folders by type
+- 🖼️ **Wallpaper Changer** - Downloads HD wallpapers from Unsplash
+- 🗑️ **Recycle Bin** - One-click empty
 
-    🖥️ Desktop Organizer: Automatically categorizes messy desktop files into folders (Images, Documents, Scripts, etc.).
+## Usage
 
-    🖼️ Dynamic Wallpapers: Refreshes your desktop with high-resolution images based on your favorite categories (Nature, Space, Minimal, etc.).
+1. Download `Neatify.exe` from [Releases](https://github.com/hayalimnet/Neatify/releases)
+2. Run the exe file
+3. Done! No installation required.
 
-    🗑️ Trash Management: One-click empty for the Recycle Bin with a size analysis.
+> 💡 **Tip:** Run as Administrator for full system cleaning.
 
-    🎨 Modern UI: Built with a sleek, dark-themed interface using CustomTkinter.
+## Notes
 
-🛠️ Installation
-For Users (Executable)
+- **Wallpapers are saved to:** `%LOCALAPPDATA%\Neatify\wallpaper.jpg`
+- **Antivirus Warning:** Some antivirus may flag this as false positive. The source code is open for inspection.
 
-    Go to the Releases page.
+## License
 
-    Download Neatify.exe.
-
-    Run as Administrator for full cleaning capabilities.
-
-For Developers (Source Code)
-Bash
-
-# Clone the repository
-git clone https://github.com/hayalimnet/Neatify.git
-
-# Install dependencies
-pip install customtkinter requests
-
-🛡️ Privacy & Security
-
-Neatify is open-source. It never accesses your personal files, browser history, or passwords. It only targets temporary cache files and organizes files on your desktop based on extensions.
-
-    Note on Antivirus: Since the app interacts with system folders and is packaged as an EXE, some antivirus software might flag it as a "False Positive." This is common with PyInstaller/Nuitka projects. You can inspect the source code here to ensure its safety.
-
-
-⚖️ License
-
-Distributed under the MIT License. See LICENSE for more information.
+MIT
