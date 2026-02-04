@@ -531,7 +531,7 @@ class AssistantGUI(ctk.CTk):
     def _set_icon(self):
         """Set application icon"""
         try:
-            icon_path = resource_path("asistan.ico")
+            icon_path = resource_path("neatify.ico")
             if os.path.exists(icon_path):
                 self.iconbitmap(icon_path)
         except Exception:
@@ -806,7 +806,7 @@ class AssistantGUI(ctk.CTk):
         
         # Set icon
         try:
-            icon_path = resource_path("asistan.ico")
+            icon_path = resource_path("neatify.ico")
             if os.path.exists(icon_path):
                 dialog.iconbitmap(icon_path)
         except:

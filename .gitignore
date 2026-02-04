@@ -19,6 +19,9 @@ exe_olustur.py
 icon_olustur.py
 version_info.txt
 
+# Source images (not needed, only ico is used)
+*.png
+
 # Python cache
 __pycache__/
 *.py[cod]
