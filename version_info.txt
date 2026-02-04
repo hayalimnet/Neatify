@@ -1,0 +1,33 @@
+# UTF-8
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(3, 1, 0, 0),
+    prodvers=(3, 1, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo(
+      [
+        StringTable(
+          u'041F04B0',
+          [
+            StringStruct(u'CompanyName', u'Temizlik Asistani'),
+            StringStruct(u'FileDescription', u'PC Bakim ve Temizlik Asistani'),
+            StringStruct(u'FileVersion', u'3.1.0.0'),
+            StringStruct(u'InternalName', u'Temizlik_Asistani'),
+            StringStruct(u'LegalCopyright', u'© 2026'),
+            StringStruct(u'OriginalFilename', u'Temizlik_Asistani.exe'),
+            StringStruct(u'ProductName', u'Dip Bucak Temizlik'),
+            StringStruct(u'ProductVersion', u'3.1.0.0')
+          ]
+        )
+      ]
+    ),
+    VarFileInfo([VarStruct(u'Translation', [0x041F, 1200])])
+  ]
+)
