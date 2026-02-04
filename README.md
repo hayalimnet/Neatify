@@ -22,15 +22,43 @@ A cross-platform PC cleanup and desktop organizer tool.
 > 💡 **Tip:** Run as Administrator for full system cleaning.
 
 ### Linux
-```bash
-# Install dependencies
-pip install customtkinter requests pillow
 
-# Run
+**Quick Install (Ubuntu/Debian):**
+```bash
+# One-liner: download and run
+curl -sSL https://raw.githubusercontent.com/hayalimnet/Neatify/main/neatify.py -o neatify.py && python3 neatify.py
+```
+
+**Or step by step:**
+```bash
+# 1. Install Python and Tkinter (if not installed)
+sudo apt install python3 python3-pip python3-tk
+
+# 2. Install dependencies
+pip3 install customtkinter requests
+
+# 3. Download and run
+curl -sSL https://raw.githubusercontent.com/hayalimnet/Neatify/main/neatify.py -o neatify.py
+python3 neatify.py
+```
+
+**Fedora/RHEL:**
+```bash
+sudo dnf install python3 python3-pip python3-tkinter
+pip3 install customtkinter requests
+curl -sSL https://raw.githubusercontent.com/hayalimnet/Neatify/main/neatify.py -o neatify.py
+python3 neatify.py
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S python python-pip tk
+pip install customtkinter requests
+curl -sSL https://raw.githubusercontent.com/hayalimnet/Neatify/main/neatify.py -o neatify.py
 python neatify.py
 ```
 
-> 💡 **Tip:** Run with `sudo` for full system cleaning.
+> 💡 **Tip:** Run with `sudo python3 neatify.py` for full system cleaning.
 
 **Supported Desktop Environments:** GNOME, KDE Plasma, i3, bspwm (feh), and more
 
