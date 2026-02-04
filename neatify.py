@@ -411,7 +411,32 @@ def set_wallpaper(image_path, log_func=None):
         try:
             import subprocess
             
-            # Try GNOME/gsettings first (most common)
+            # Detect desktop environment
+            desktop = os.environ.get('XDG_CURRENT_DESKTOP', '').upper()
+            
+            # Try XFCE first (xfconf-query)
+            if 'XFCE' in desktop:
+                try:
+                    # Get current monitor property
+                    result = subprocess.run(
+                        ['xfconf-query', '-c', 'xfce4-desktop', '-l'],
+                        capture_output=True, text=True
+                    )
+                    # Find backdrop image properties
+                    for line in result.stdout.split('\n'):
+                        if '/last-image' in line:
+                            subprocess.run([
+                                'xfconf-query', '-c', 'xfce4-desktop',
+                                '-p', line.strip(), '-s', image_path
+                            ], check=True, capture_output=True)
+                    if log_func:
+                        log_func("   ✅ Wallpaper changed!")
+                    return True
+                except Exception as e:
+                    if log_func:
+                        log_func(f"   ⚠️ XFCE error: {e}")
+            
+            # Try GNOME/gsettings
             try:
                 subprocess.run([
                     'gsettings', 'set', 'org.gnome.desktop.background', 'picture-uri',
@@ -459,6 +484,29 @@ for (i=0;i<allDesktops.length;i++) {{
             # Try nitrogen
             try:
                 subprocess.run(['nitrogen', '--set-zoom-fill', image_path], check=True, capture_output=True)
+                if log_func:
+                    log_func("   ✅ Wallpaper changed!")
+                return True
+            except:
+                pass
+            
+            # Try MATE
+            try:
+                subprocess.run([
+                    'gsettings', 'set', 'org.mate.background', 'picture-filename', image_path
+                ], check=True, capture_output=True)
+                if log_func:
+                    log_func("   ✅ Wallpaper changed!")
+                return True
+            except:
+                pass
+            
+            # Try Cinnamon
+            try:
+                subprocess.run([
+                    'gsettings', 'set', 'org.cinnamon.desktop.background', 'picture-uri',
+                    f'file://{image_path}'
+                ], check=True, capture_output=True)
                 if log_func:
                     log_func("   ✅ Wallpaper changed!")
                 return True
