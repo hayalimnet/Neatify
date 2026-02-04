@@ -23,6 +23,17 @@ A simple Windows cleanup and desktop organizer tool.
 - **Wallpapers are saved to:** `%LOCALAPPDATA%\Neatify\wallpaper.jpg`
 - **Antivirus Warning:** Some antivirus may flag this as false positive. The source code is open for inspection.
 
+## Wallpaper Feature (Optional)
+
+To use the wallpaper feature, you need an Unsplash API key:
+
+1. Get a free API key from [Unsplash Developers](https://unsplash.com/developers)
+2. Set environment variable:
+   ```
+   setx UNSPLASH_KEY "your-api-key-here"
+   ```
+3. Restart the app
+
 ## License
 
 MIT
