@@ -23,50 +23,23 @@ A cross-platform PC cleanup and desktop organizer tool.
 
 ### Linux
 
-**Quick Install (Ubuntu 23.04+ / Debian 12+):**
+**One-liner install (Ubuntu/Debian/Fedora/Arch):**
 ```bash
-# One-liner with virtual environment
-sudo apt install -y python3-tk python3-venv && python3 -m venv ~/neatify-env && ~/neatify-env/bin/pip install customtkinter requests && curl -sSL https://raw.githubusercontent.com/hayalimnet/Neatify/main/neatify.py -o ~/neatify.py && ~/neatify-env/bin/python ~/neatify.py
+curl -sSL https://raw.githubusercontent.com/hayalimnet/Neatify/main/install.sh | bash
 ```
 
-**Or step by step:**
+This will:
+- ✅ Install dependencies automatically
+- ✅ Create virtual environment
+- ✅ Add `neatify` command to your PATH
+- ✅ Create desktop shortcut
+
+**Run anytime with:**
 ```bash
-# 1. Install dependencies
-sudo apt install -y python3-tk python3-venv
-
-# 2. Create virtual environment
-python3 -m venv ~/neatify-env
-
-# 3. Install Python packages
-~/neatify-env/bin/pip install customtkinter requests
-
-# 4. Download and run
-curl -sSL https://raw.githubusercontent.com/hayalimnet/Neatify/main/neatify.py -o ~/neatify.py
-~/neatify-env/bin/python ~/neatify.py
+neatify
 ```
 
-**Run again later:**
-```bash
-~/neatify-env/bin/python ~/neatify.py
-```
-
-**Fedora/RHEL:**
-```bash
-sudo dnf install python3 python3-pip python3-tkinter
-pip3 install customtkinter requests
-curl -sSL https://raw.githubusercontent.com/hayalimnet/Neatify/main/neatify.py -o neatify.py
-python3 neatify.py
-```
-
-**Arch Linux:**
-```bash
-sudo pacman -S python python-pip tk
-pip install customtkinter requests
-curl -sSL https://raw.githubusercontent.com/hayalimnet/Neatify/main/neatify.py -o neatify.py
-python neatify.py
-```
-
-> 💡 **Tip:** Run with `sudo python3 neatify.py` for full system cleaning.
+> 💡 **Tip:** Run with `sudo neatify` for full system cleaning.
 
 **Supported Desktop Environments:** GNOME, KDE Plasma, i3, bspwm (feh), and more
 
