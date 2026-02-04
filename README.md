@@ -23,23 +23,31 @@ A cross-platform PC cleanup and desktop organizer tool.
 
 ### Linux
 
-**Quick Install (Ubuntu/Debian):**
+**Quick Install (Ubuntu 23.04+ / Debian 12+):**
 ```bash
-# One-liner: install deps + download + run
-sudo apt install -y python3-tk && pip3 install customtkinter requests && curl -sSL https://raw.githubusercontent.com/hayalimnet/Neatify/main/neatify.py -o neatify.py && python3 neatify.py
+# One-liner with virtual environment
+sudo apt install -y python3-tk python3-venv && python3 -m venv ~/neatify-env && ~/neatify-env/bin/pip install customtkinter requests && curl -sSL https://raw.githubusercontent.com/hayalimnet/Neatify/main/neatify.py -o ~/neatify.py && ~/neatify-env/bin/python ~/neatify.py
 ```
 
 **Or step by step:**
 ```bash
-# 1. Install Python and Tkinter (if not installed)
-sudo apt install python3 python3-pip python3-tk
+# 1. Install dependencies
+sudo apt install -y python3-tk python3-venv
 
-# 2. Install dependencies
-pip3 install customtkinter requests
+# 2. Create virtual environment
+python3 -m venv ~/neatify-env
 
-# 3. Download and run
-curl -sSL https://raw.githubusercontent.com/hayalimnet/Neatify/main/neatify.py -o neatify.py
-python3 neatify.py
+# 3. Install Python packages
+~/neatify-env/bin/pip install customtkinter requests
+
+# 4. Download and run
+curl -sSL https://raw.githubusercontent.com/hayalimnet/Neatify/main/neatify.py -o ~/neatify.py
+~/neatify-env/bin/python ~/neatify.py
+```
+
+**Run again later:**
+```bash
+~/neatify-env/bin/python ~/neatify.py
 ```
 
 **Fedora/RHEL:**
