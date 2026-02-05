@@ -131,11 +131,40 @@ if IS_LINUX:
     DESKTOP_RULES['Programs'] = ['.sh', '.AppImage', '.run', '.deb', '.rpm', '.snap']
 
 # --- HELPER FUNCTIONS ---
+def get_trash_paths():
+    """Get all possible trash paths for Linux"""
+    if not IS_LINUX:
+        return []
+    
+    trash_paths = []
+    
+    # Standard XDG trash location
+    xdg_data = os.environ.get('XDG_DATA_HOME', os.path.join(USER_PROFILE, '.local', 'share'))
+    trash_paths.append(os.path.join(xdg_data, 'Trash'))
+    
+    # Also check common locations
+    trash_paths.append(os.path.join(USER_PROFILE, '.local', 'share', 'Trash'))
+    trash_paths.append(os.path.join(USER_PROFILE, '.Trash'))
+    
+    # Check mounted drives for .Trash-1000 folders
+    uid = os.getuid() if hasattr(os, 'getuid') else 1000
+    try:
+        with open('/proc/mounts', 'r') as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 2:
+                    mount_point = parts[1]
+                    if mount_point.startswith('/media') or mount_point.startswith('/mnt'):
+                        trash_paths.append(os.path.join(mount_point, f'.Trash-{uid}'))
+    except:
+        pass
+    
+    return trash_paths
+
 def get_trash_path():
-    """Get trash/recycle bin path for current platform"""
-    if IS_LINUX:
-        return os.path.join(USER_PROFILE, '.local', 'share', 'Trash')
-    return None
+    """Get the main trash path (for backward compatibility)"""
+    paths = get_trash_paths()
+    return paths[0] if paths else None
 
 def recycle_bin_size():
     """Calculate total file size in Recycle Bin/Trash"""
@@ -162,29 +191,31 @@ def recycle_bin_size():
         except Exception:
             return 0, 0
     else:  # Linux
-        try:
-            trash_path = get_trash_path()
-            files_path = os.path.join(trash_path, 'files')
-            if not os.path.exists(files_path):
-                return 0, 0
-            
-            total_size = 0
-            total_items = 0
-            for item in os.listdir(files_path):
+        total_size = 0
+        total_items = 0
+        
+        for trash_path in get_trash_paths():
+            try:
+                files_path = os.path.join(trash_path, 'files')
+                if not os.path.exists(files_path):
+                    continue
+                
+                for item in os.listdir(files_path):
                 item_path = os.path.join(files_path, item)
                 total_items += 1
                 if os.path.isfile(item_path):
                     total_size += os.path.getsize(item_path)
-                elif os.path.isdir(item_path):
-                    for root, dirs, files in os.walk(item_path):
-                        for f in files:
-                            try:
-                                total_size += os.path.getsize(os.path.join(root, f))
-                            except:
-                                pass
-            return total_size, total_items
-        except Exception:
-            return 0, 0
+                    elif os.path.isdir(item_path):
+                        for root, dirs, files in os.walk(item_path):
+                            for f in files:
+                                try:
+                                    total_size += os.path.getsize(os.path.join(root, f))
+                                except:
+                                    pass
+            except Exception:
+                continue
+        
+        return total_size, total_items
 
 def empty_recycle_bin(log_func=None):
     """Empty Recycle Bin (Windows) or Trash (Linux)"""
@@ -210,30 +241,28 @@ def empty_recycle_bin(log_func=None):
                 log_func(f"   ⚠️ Could not empty Recycle Bin: {type(e).__name__}")
             return False
     else:  # Linux
-        try:
-            trash_path = get_trash_path()
-            files_path = os.path.join(trash_path, 'files')
-            info_path = os.path.join(trash_path, 'info')
-            
-            deleted = 0
-            # Delete files in trash
-            if os.path.exists(files_path):
-                for item in os.listdir(files_path):
-                    item_path = os.path.join(files_path, item)
-                    if safe_delete(item_path, log_func):
-                        deleted += 1
-            
-            # Delete .trashinfo files
-            if os.path.exists(info_path):
-                for item in os.listdir(info_path):
-                    item_path = os.path.join(info_path, item)
-                    safe_delete(item_path)
-            
-            return deleted > 0 or not os.listdir(files_path) if os.path.exists(files_path) else True
-        except Exception as e:
-            if log_func:
-                log_func(f"   ⚠️ Could not empty Trash: {type(e).__name__}")
-            return False
+        total_deleted = 0
+        for trash_path in get_trash_paths():
+            try:
+                files_path = os.path.join(trash_path, 'files')
+                info_path = os.path.join(trash_path, 'info')
+                
+                # Delete files in trash
+                if os.path.exists(files_path):
+                    for item in os.listdir(files_path):
+                        item_path = os.path.join(files_path, item)
+                        if safe_delete(item_path, log_func):
+                            total_deleted += 1
+                
+                # Delete .trashinfo files
+                if os.path.exists(info_path):
+                    for item in os.listdir(info_path):
+                        item_path = os.path.join(info_path, item)
+                        safe_delete(item_path)
+            except Exception:
+                continue
+        
+        return total_deleted > 0
 
 # --- WALLPAPER SETTINGS ---
 WALLPAPER_CATEGORIES = {

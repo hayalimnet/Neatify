@@ -95,6 +95,11 @@ if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
     export PATH="$HOME/.local/bin:$PATH"
 fi
 
+# Create symlink for sudo support
+echo ""
+echo "🔐 Setting up sudo support..."
+sudo ln -sf "$BIN_DIR/neatify" /usr/local/bin/neatify 2>/dev/null || echo "   ⚠️ Could not create sudo symlink (optional)"
+
 echo ""
 echo "============================================"
 echo "✅ Neatify installed successfully!"
