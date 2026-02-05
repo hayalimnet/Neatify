@@ -132,9 +132,11 @@ DESKTOP_RULES = {
     'Other': ['.rf', '.torrent', '.nfo', '.srt', '.sub']
 }
 
-# Linux: Add shell scripts and AppImage to Programs
+# Linux: Override/extend rules for Linux-specific file types
 if IS_LINUX:
-    DESKTOP_RULES['Programs'] = ['.sh', '.AppImage', '.run', '.deb', '.rpm', '.snap']
+    DESKTOP_RULES['Programs'] = ['.sh', '.AppImage', '.run', '.deb', '.rpm', '.snap', '.flatpakref']
+    DESKTOP_RULES['Archives'].extend(['.tgz', '.tbz2', '.txz', '.deb', '.rpm'])
+    DESKTOP_RULES['Code'].extend(['.conf', '.cfg', '.ini', '.desktop', '.service'])
 
 # --- HELPER FUNCTIONS ---
 def get_trash_paths():
