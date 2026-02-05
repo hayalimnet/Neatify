@@ -68,7 +68,13 @@ if IS_WINDOWS:
     DESKTOP_PATH = os.path.join(USER_PROFILE, 'Desktop')
     
 else:  # Linux
-    USER_PROFILE = os.path.expanduser('~')
+    # Handle sudo: get real user's home, not root's
+    _sudo_user = os.environ.get('SUDO_USER')
+    if _sudo_user:
+        USER_PROFILE = os.path.join('/home', _sudo_user)
+    else:
+        USER_PROFILE = os.path.expanduser('~')
+    
     LOCAL_APP_DATA = os.path.join(USER_PROFILE, '.local', 'share')
     ROAMING_APP_DATA = os.path.join(USER_PROFILE, '.config')
     
