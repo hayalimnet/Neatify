@@ -104,7 +104,7 @@ else:  # Linux
             if result.returncode == 0 and result.stdout.strip():
                 DESKTOP_PATH = result.stdout.strip()
         except:
-        pass
+            pass
 
 # Browser files/folders to delete (CACHE ONLY - safe)
 # Note: Cookies, Login Data and other sensitive files are NOT included
