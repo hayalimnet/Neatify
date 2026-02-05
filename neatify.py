@@ -136,15 +136,15 @@ def get_trash_paths():
     if not IS_LINUX:
         return []
     
-    trash_paths = []
+    trash_paths = set()  # Use set to avoid duplicates
     
     # Standard XDG trash location
     xdg_data = os.environ.get('XDG_DATA_HOME', os.path.join(USER_PROFILE, '.local', 'share'))
-    trash_paths.append(os.path.join(xdg_data, 'Trash'))
+    trash_paths.add(os.path.join(xdg_data, 'Trash'))
     
     # Also check common locations
-    trash_paths.append(os.path.join(USER_PROFILE, '.local', 'share', 'Trash'))
-    trash_paths.append(os.path.join(USER_PROFILE, '.Trash'))
+    trash_paths.add(os.path.join(USER_PROFILE, '.local', 'share', 'Trash'))
+    trash_paths.add(os.path.join(USER_PROFILE, '.Trash'))
     
     # Check mounted drives for .Trash-1000 folders
     uid = os.getuid() if hasattr(os, 'getuid') else 1000
@@ -155,11 +155,11 @@ def get_trash_paths():
                 if len(parts) >= 2:
                     mount_point = parts[1]
                     if mount_point.startswith('/media') or mount_point.startswith('/mnt'):
-                        trash_paths.append(os.path.join(mount_point, f'.Trash-{uid}'))
+                        trash_paths.add(os.path.join(mount_point, f'.Trash-{uid}'))
     except:
         pass
     
-    return trash_paths
+    return list(trash_paths)
 
 def get_trash_path():
     """Get the main trash path (for backward compatibility)"""
