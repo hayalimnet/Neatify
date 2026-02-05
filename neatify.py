@@ -96,13 +96,14 @@ else:  # Linux
     FIREFOX_PATH = os.path.join(USER_PROFILE, '.mozilla', 'firefox')
     DESKTOP_PATH = os.path.join(USER_PROFILE, 'Desktop')
     
-    # Also check XDG desktop location
-    try:
-        import subprocess
-        result = subprocess.run(['xdg-user-dir', 'DESKTOP'], capture_output=True, text=True)
-        if result.returncode == 0 and result.stdout.strip():
-            DESKTOP_PATH = result.stdout.strip()
-    except:
+    # Also check XDG desktop location (but skip if running as sudo - it returns root's desktop)
+    if not os.environ.get('SUDO_USER'):
+        try:
+            import subprocess
+            result = subprocess.run(['xdg-user-dir', 'DESKTOP'], capture_output=True, text=True)
+            if result.returncode == 0 and result.stdout.strip():
+                DESKTOP_PATH = result.stdout.strip()
+        except:
         pass
 
 # Browser files/folders to delete (CACHE ONLY - safe)
