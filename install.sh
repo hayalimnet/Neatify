@@ -67,9 +67,9 @@ curl -sSL https://raw.githubusercontent.com/hayalimnet/Neatify/main/neatify.py -
 # Create launcher script
 echo ""
 echo "🚀 Creating launcher..."
-cat > "$BIN_DIR/neatify" << 'EOF'
+cat > "$BIN_DIR/neatify" << EOF
 #!/bin/bash
-~/.local/share/neatify/venv/bin/python ~/.local/share/neatify/neatify.py "$@"
+$VENV_DIR/bin/python $INSTALL_DIR/neatify.py "\$@"
 EOF
 chmod +x "$BIN_DIR/neatify"
 
