@@ -67,16 +67,16 @@ curl -sSL https://raw.githubusercontent.com/hayalimnet/Neatify/main/neatify.py -
 # Create launcher script
 echo ""
 echo "🚀 Creating launcher..."
-cat > "$BIN_DIR/neatify" << EOF
+cat > "$BIN_DIR/neatify" << LAUNCHER
 #!/bin/bash
 $VENV_DIR/bin/python $INSTALL_DIR/neatify.py "\$@"
-EOF
+LAUNCHER
 chmod +x "$BIN_DIR/neatify"
 
 # Create desktop shortcut
 echo ""
 echo "🖥️ Creating desktop shortcut..."
-cat > "$HOME/.local/share/applications/neatify.desktop" << EOF
+cat > "$HOME/.local/share/applications/neatify.desktop" << DESKTOP
 [Desktop Entry]
 Name=Neatify
 Comment=PC Cleanup Assistant
@@ -85,7 +85,7 @@ Icon=utilities-system-monitor
 Terminal=false
 Type=Application
 Categories=Utility;System;
-EOF
+DESKTOP
 
 # Add ~/.local/bin to PATH if not already
 if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
@@ -107,11 +107,3 @@ echo ""
 echo "Run with:  neatify"
 echo "Or find it in your application menu"
 echo "============================================"
-echo ""
-
-# Ask to run now
-read -p "🚀 Launch Neatify now? [Y/n] " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
-    "$BIN_DIR/neatify"
-fi
