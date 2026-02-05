@@ -201,10 +201,10 @@ def recycle_bin_size():
                     continue
                 
                 for item in os.listdir(files_path):
-                item_path = os.path.join(files_path, item)
-                total_items += 1
-                if os.path.isfile(item_path):
-                    total_size += os.path.getsize(item_path)
+                    item_path = os.path.join(files_path, item)
+                    total_items += 1
+                    if os.path.isfile(item_path):
+                        total_size += os.path.getsize(item_path)
                     elif os.path.isdir(item_path):
                         for root, dirs, files in os.walk(item_path):
                             for f in files:
