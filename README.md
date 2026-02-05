@@ -41,7 +41,7 @@ neatify
 
 > 💡 **Tip:** Run with `sudo neatify` for full system cleaning.
 
-**Supported Desktop Environments:** GNOME, KDE Plasma, i3, bspwm (feh), and more
+**Supported Desktop Environments:** GNOME, KDE Plasma, XFCE (Linux Mint), Cinnamon, MATE, i3, bspwm, and more
 
 ## Notes
 
@@ -56,9 +56,15 @@ The wallpaper feature works out of the box. However, if you want to use your own
 
 1. Get a free API key from [Unsplash Developers](https://unsplash.com/developers)
 2. Set environment variable:
-   ```
-   setx UNSPLASH_KEY "your-api-key-here"
-   ```
+   - **Windows:**
+     ```
+     setx UNSPLASH_KEY "your-api-key-here"
+     ```
+   - **Linux:**
+     ```bash
+     echo 'export UNSPLASH_KEY="your-api-key-here"' >> ~/.bashrc
+     source ~/.bashrc
+     ```
 3. Restart the app
 
 ## License
