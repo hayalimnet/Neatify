@@ -122,6 +122,7 @@ DESKTOP_RULES = {
     'Images': ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.ico', '.tiff', '.tif', '.raw'],
     'Documents': ['.pdf', '.docx', '.doc', '.txt', '.xlsx', '.xls', '.pptx', '.ppt', '.odt', '.rtf', '.log', '.md'],
     'Programs': ['.exe', '.msi', '.bat', '.ps1', '.cmd', '.vbs', '.reg'],
+    'Shortcuts': ['.lnk', '.url'],
     'Archives': ['.zip', '.rar', '.7z', '.iso', '.tar', '.gz', '.bz2', '.xz'],
     'Code': ['.py', '.js', '.html', '.css', '.json', '.cpp', '.sql', '.java', '.cs', '.ts', '.jsx', '.tsx', '.xml', '.yaml', '.yml'],
     'Fonts': ['.ttf', '.otf', '.woff', '.woff2', '.eot'],
@@ -137,7 +138,8 @@ DESKTOP_RULES = {
 if IS_LINUX:
     DESKTOP_RULES['Programs'] = ['.sh', '.AppImage', '.run', '.deb', '.rpm', '.snap', '.flatpakref']
     DESKTOP_RULES['Archives'].extend(['.tgz', '.tbz2', '.txz', '.deb', '.rpm'])
-    DESKTOP_RULES['Code'].extend(['.conf', '.cfg', '.ini', '.desktop', '.service'])
+    DESKTOP_RULES['Code'].extend(['.conf', '.cfg', '.ini', '.service'])
+    DESKTOP_RULES['Shortcuts'] = ['.desktop']  # Linux app shortcuts are .desktop files
 
 # --- HELPER FUNCTIONS ---
 def get_trash_paths():
@@ -683,7 +685,7 @@ class AssistantGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Neatify v1.0")
+        self.title("Neatify v1.1.0")
         self.geometry("750x600")
         self.minsize(600, 500)
         ctk.set_appearance_mode("dark")
@@ -902,11 +904,24 @@ class AssistantGUI(ctk.CTk):
                 self.log("🖥️ Scanning desktop...")
                 d_path = DESKTOP_PATH
                 if os.path.exists(d_path):
-                    file_count = len([f for f in os.listdir(d_path) if os.path.isfile(os.path.join(d_path, f))])
+                    shortcut_exts = set(DESKTOP_RULES.get('Shortcuts', []))
+                    shortcut_count = 0
+                    other_file_count = 0
+                    for f in os.listdir(d_path):
+                        fp = os.path.join(d_path, f)
+                        if os.path.isfile(fp):
+                            ext = pathlib.Path(f).suffix.lower()
+                            if ext in shortcut_exts:
+                                shortcut_count += 1
+                            else:
+                                other_file_count += 1
                     empty_folder_count = len([d for d in os.listdir(d_path) 
                                              if os.path.isdir(os.path.join(d_path, d)) 
                                              and not os.listdir(os.path.join(d_path, d))])
-                    self.log(f"   • Files to organize: {file_count}")
+                    if shortcut_count > 0:
+                        self.log(f"   • Shortcuts to organize: {shortcut_count}")
+                    if other_file_count > 0:
+                        self.log(f"   • Other files to organize: {other_file_count}")
                     if empty_folder_count > 0:
                         self.log(f"   • Empty folders to delete: {empty_folder_count}")
                     self.log("")
@@ -1016,7 +1031,9 @@ class AssistantGUI(ctk.CTk):
                 d_path = DESKTOP_PATH
                 if os.path.exists(d_path):
                     moved = 0
+                    shortcuts_moved = 0
                     deleted_folders = 0
+                    shortcut_exts = set(DESKTOP_RULES.get('Shortcuts', []))
                     
                     # Move files to categories
                     for file in os.listdir(d_path):
@@ -1029,7 +1046,10 @@ class AssistantGUI(ctk.CTk):
                                     os.makedirs(target, exist_ok=True)
                                     try:
                                         shutil.move(f_path, os.path.join(target, file))
-                                        moved += 1
+                                        if folder == 'Shortcuts':
+                                            shortcuts_moved += 1
+                                        else:
+                                            moved += 1
                                     except Exception:
                                         pass
                                     break
@@ -1046,7 +1066,12 @@ class AssistantGUI(ctk.CTk):
                             except Exception:
                                 pass
                     
-                    self.log(f"   ✓ {moved} files organized")
+                    if shortcuts_moved > 0:
+                        self.log(f"   ✓ {shortcuts_moved} shortcuts organized → Shortcuts/")
+                    if moved > 0:
+                        self.log(f"   ✓ {moved} files organized")
+                    if shortcuts_moved == 0 and moved == 0:
+                        self.log("   ℹ️ No files to organize")
                     if deleted_folders > 0:
                         self.log(f"   ✓ {deleted_folders} empty folders deleted")
                     self.log("")

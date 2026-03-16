@@ -8,7 +8,7 @@ A cross-platform PC cleanup and desktop organizer tool.
 
 - 🗂️ **System Cleanup** - Removes temp files, cache, and logs
 - 🌐 **Browser Cleanup** - Clears cache for Chrome, Edge, Brave, Opera, Firefox
-- 🖥️ **Desktop Organizer** - Sorts files into folders by type
+- 🖥️ **Desktop Organizer** - Sorts files into folders by type (shortcuts organized into dedicated `Shortcuts/` folder)
 - 🖼️ **Wallpaper Changer** - Downloads HD wallpapers from Unsplash
 - 🗑️ **Empty Trash** - One-click empty (Recycle Bin on Windows, Trash on Linux)
 
