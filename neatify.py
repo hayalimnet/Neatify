@@ -15,6 +15,57 @@ IS_LINUX = platform.system() == "Linux"
 # Only import ctypes on Windows
 if IS_WINDOWS:
     import ctypes
+    try:
+        import winreg
+    except Exception:
+        winreg = None
+
+
+def get_windows_desktop_path(user_profile):
+    """Resolve the actual Desktop path on Windows (supports OneDrive redirect)."""
+    if not IS_WINDOWS:
+        return os.path.join(user_profile, 'Desktop')
+
+    candidates = []
+
+    # 1) Preferred source: User Shell Folders (can include %USERPROFILE%)
+    if winreg is not None:
+        try:
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
+            ) as key:
+                desktop_value, _ = winreg.QueryValueEx(key, 'Desktop')
+                expanded = os.path.expandvars(desktop_value)
+                if expanded:
+                    candidates.append(expanded)
+        except Exception:
+            pass
+
+        # 2) Fallback: Shell Folders (already expanded)
+        try:
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders"
+            ) as key:
+                desktop_value, _ = winreg.QueryValueEx(key, 'Desktop')
+                if desktop_value:
+                    candidates.append(desktop_value)
+        except Exception:
+            pass
+
+    # 3) Common fallbacks
+    candidates.append(os.path.join(user_profile, 'Desktop'))
+    one_drive = os.environ.get('OneDrive') or os.environ.get('OneDriveConsumer') or os.environ.get('OneDriveCommercial')
+    if one_drive:
+        candidates.append(os.path.join(one_drive, 'Desktop'))
+
+    # Pick first existing directory; otherwise return first candidate
+    for path in candidates:
+        if path and os.path.isdir(path):
+            return path
+
+    return candidates[0] if candidates else os.path.join(user_profile, 'Desktop')
 
 # Lazy import - speeds up app startup
 requests = None
@@ -65,7 +116,7 @@ if IS_WINDOWS:
     }
     
     FIREFOX_PATH = os.path.join(ROAMING_APP_DATA, r"Mozilla\Firefox\Profiles")
-    DESKTOP_PATH = os.path.join(USER_PROFILE, 'Desktop')
+    DESKTOP_PATH = get_windows_desktop_path(USER_PROFILE)
     
 else:  # Linux
     # Handle sudo: get real user's home, not root's
@@ -685,7 +736,7 @@ class AssistantGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Neatify v1.1.0")
+        self.title("Neatify v1.1.1")
         self.geometry("750x600")
         self.minsize(600, 500)
         ctk.set_appearance_mode("dark")
@@ -903,6 +954,7 @@ class AssistantGUI(ctk.CTk):
             if self.var_desktop.get():
                 self.log("🖥️ Scanning desktop...")
                 d_path = DESKTOP_PATH
+                self.log(f"   • Desktop path: {d_path}")
                 if os.path.exists(d_path):
                     shortcut_exts = set(DESKTOP_RULES.get('Shortcuts', []))
                     shortcut_count = 0
@@ -1029,6 +1081,7 @@ class AssistantGUI(ctk.CTk):
             if self.var_desktop.get():
                 self.log("🖥️ Organizing desktop...")
                 d_path = DESKTOP_PATH
+                self.log(f"   • Desktop path: {d_path}")
                 if os.path.exists(d_path):
                     moved = 0
                     shortcuts_moved = 0
