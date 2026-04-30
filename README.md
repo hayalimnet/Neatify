@@ -15,9 +15,8 @@ A cross-platform PC cleanup and desktop organizer tool.
 ## Installation
 
 ### Windows
-1. Download `Neatify.exe` from [Releases](https://github.com/hayalimnet/Neatify/releases)
-2. Run the exe file
-3. Done! No installation required.
+1. Download [Neatify.exe](https://github.com/hayalimnet/Neatify/releases/download/v1.2.0/neatify.exe)
+2. Run!
 
 > 💡 **Tip:** Run as Administrator for full system cleaning.
 
