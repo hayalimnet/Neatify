@@ -736,7 +736,7 @@ class AssistantGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Neatify v1.1.1")
+        self.title("Neatify v1.2.0")
         self.geometry("750x600")
         self.minsize(600, 500)
         ctk.set_appearance_mode("dark")
@@ -752,66 +752,93 @@ class AssistantGUI(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(2, weight=1)
 
-        # Title
-        self.title_label = ctk.CTkLabel(
-            self, 
-            text="✨ Neatify - PC Cleaning Assistant", 
-            font=("Segoe UI", 26, "bold")
-        )
-        self.title_label.grid(row=0, column=0, pady=(20, 10))
+        # Header Area
+        self.header_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.header_frame.grid(row=0, column=0, pady=(15, 5), sticky="ew")
         
+        self.title_label = ctk.CTkLabel(
+            self.header_frame, 
+            text="Ⓝ Neatify", 
+            font=("Segoe UI", 36, "bold"),
+            text_color="#3498db"
+        )
+        self.title_label.pack()
+        
+        self.subtitle_label = ctk.CTkLabel(
+            self.header_frame,
+            text="Cleaning Tool",
+            font=("Segoe UI", 14),
+            text_color="gray"
+        )
+        self.subtitle_label.pack()
+
         # Admin warning
         if not is_admin():
             admin_text = "⚠️ Run as Administrator for full cleaning" if IS_WINDOWS else "⚠️ Run as root for full cleaning"
             self.admin_label = ctk.CTkLabel(
-                self, 
+                self.header_frame, 
                 text=admin_text,
-                font=("Segoe UI", 12),
+                font=("Segoe UI", 13, "bold"),
                 text_color="#f39c12"
             )
-            self.admin_label.grid(row=0, column=0, pady=(55, 0))
+            self.admin_label.pack(pady=(5, 0))
 
         # Options Panel
-        self.options_frame = ctk.CTkFrame(self)
-        self.options_frame.grid(row=1, column=0, padx=20, pady=10, sticky="ew")
+        self.options_frame = ctk.CTkFrame(
+            self,
+            corner_radius=15,
+            border_width=2,
+            border_color="#2c3e50"
+        )
+        self.options_frame.grid(row=1, column=0, padx=30, pady=10, sticky="ew")
         self.options_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
+
+        cb_font = ("Segoe UI", 14, "bold")
 
         self.var_system = ctk.BooleanVar(value=True)
         self.cb_system = ctk.CTkCheckBox(
             self.options_frame, 
-            text="🗂️ System Cleanup", 
+            text="🗂️ System", 
             variable=self.var_system,
-            font=("Segoe UI", 13)
+            font=cb_font,
+            fg_color="#3498db",
+            hover_color="#2980b9"
         )
-        self.cb_system.grid(row=0, column=0, padx=10, pady=15)
+        self.cb_system.grid(row=0, column=0, padx=15, pady=20)
 
         self.var_browser = ctk.BooleanVar(value=True)
         self.cb_browser = ctk.CTkCheckBox(
             self.options_frame, 
-            text="🌐 Browser Cleanup", 
+            text="🌐 Browsers", 
             variable=self.var_browser,
-            font=("Segoe UI", 13)
+            font=cb_font,
+            fg_color="#3498db",
+            hover_color="#2980b9"
         )
-        self.cb_browser.grid(row=0, column=1, padx=10, pady=15)
+        self.cb_browser.grid(row=0, column=1, padx=15, pady=20)
 
         self.var_desktop = ctk.BooleanVar(value=False)
         self.cb_desktop = ctk.CTkCheckBox(
             self.options_frame, 
-            text="🖥️ Organize Desktop", 
+            text="🖥️ Desktop", 
             variable=self.var_desktop,
-            font=("Segoe UI", 13)
+            font=cb_font,
+            fg_color="#3498db",
+            hover_color="#2980b9"
         )
-        self.cb_desktop.grid(row=0, column=2, padx=10, pady=15)
+        self.cb_desktop.grid(row=0, column=2, padx=15, pady=20)
 
         self.var_recycle_bin = ctk.BooleanVar(value=True)
-        trash_label = "🗑️ Empty Recycle Bin" if IS_WINDOWS else "🗑️ Empty Trash"
+        trash_label = "🗑️ Recycle Bin" if IS_WINDOWS else "🗑️ Trash"
         self.cb_recycle_bin = ctk.CTkCheckBox(
             self.options_frame, 
             text=trash_label, 
             variable=self.var_recycle_bin,
-            font=("Segoe UI", 13)
+            font=cb_font,
+            fg_color="#3498db",
+            hover_color="#2980b9"
         )
-        self.cb_recycle_bin.grid(row=0, column=3, padx=10, pady=15)
+        self.cb_recycle_bin.grid(row=0, column=3, padx=15, pady=20)
 
         # Log Box
         self.log_box = ctk.CTkTextbox(
@@ -823,8 +850,15 @@ class AssistantGUI(ctk.CTk):
         self.log_box.insert("0.0", "🎉 Welcome!\n\nClick '🔍 Analyze' to scan your system.\n")
 
         # Progress bar
-        self.progress_bar = ctk.CTkProgressBar(self, mode="indeterminate")
-        self.progress_bar.grid(row=3, column=0, padx=20, pady=(0, 10), sticky="ew")
+        self.progress_bar = ctk.CTkProgressBar(
+            self, 
+            mode="indeterminate",
+            height=12,
+            corner_radius=6,
+            progress_color="#3498db",
+            fg_color="#2c3e50"
+        )
+        self.progress_bar.grid(row=3, column=0, padx=30, pady=(0, 15), sticky="ew")
         self.progress_bar.set(0)
 
         # Buttons
@@ -877,13 +911,17 @@ class AssistantGUI(ctk.CTk):
         except Exception:
             pass  # Use default icon if not found
 
-    def log(self, message):
+    def log(self, message, color=None):
         """Thread-safe logging"""
-        self.after(0, self._write_log, message)
+        self.after(0, self._write_log, message, color)
 
-    def _write_log(self, message):
+    def _write_log(self, message, color=None):
         """Write log in main thread"""
-        self.log_box.insert("end", f"\n{message}")
+        if color:
+            self.log_box.tag_config(color, foreground=color)
+            self.log_box.insert("end", f"\n{message}", color)
+        else:
+            self.log_box.insert("end", f"\n{message}")
         self.log_box.see("end")
 
     def set_buttons_state(self, enabled):
@@ -914,13 +952,13 @@ class AssistantGUI(ctk.CTk):
         """Analysis operation logic"""
         try:
             self.after(0, lambda: self.log_box.delete("0.0", "end"))
-            self.log("🔍 Starting analysis...\n")
+            self.log("🔍 Starting analysis...\n", "#3498db")
             
             total = 0
             
             # System
             if self.var_system.get():
-                self.log("📁 Scanning system folders...")
+                self.log("\n─── 📁 SCANNING SYSTEM FOLDERS ───", "#f39c12")
                 s_size = 0
                 for name, path in TARGET_DIRS.items():
                     if os.path.exists(path):
@@ -932,7 +970,7 @@ class AssistantGUI(ctk.CTk):
             
             # Browser
             if self.var_browser.get():
-                self.log("🌐 Scanning browsers...")
+                self.log("\n─── 🌐 SCANNING BROWSERS ───", "#f39c12")
                 b_size = 0
                 for name, path in BROWSER_PATHS.items():
                     if os.path.exists(path):
@@ -952,7 +990,7 @@ class AssistantGUI(ctk.CTk):
             
             # Desktop analysis
             if self.var_desktop.get():
-                self.log("🖥️ Scanning desktop...")
+                self.log("\n─── 🖥️ SCANNING DESKTOP ───", "#f39c12")
                 d_path = DESKTOP_PATH
                 self.log(f"   • Desktop path: {d_path}")
                 if os.path.exists(d_path):
@@ -981,7 +1019,7 @@ class AssistantGUI(ctk.CTk):
             # Recycle Bin / Trash analysis
             if self.var_recycle_bin.get():
                 trash_name = "Recycle Bin" if IS_WINDOWS else "Trash"
-                self.log(f"🗑️ Scanning {trash_name}...")
+                self.log(f"\n─── 🗑️ SCANNING {trash_name.upper()} ───", "#f39c12")
                 bin_size, bin_count = recycle_bin_size()
                 if bin_count > 0:
                     self.log(f"   • {int(bin_count)} items, {format_size(bin_size)}")
@@ -990,12 +1028,12 @@ class AssistantGUI(ctk.CTk):
                     self.log(f"   • {trash_name} is empty")
                 self.log("")
             
-            self.log("=" * 45)
-            self.log(f"📊 TOTAL CLEANABLE: {format_size(total)}")
-            self.log("=" * 45)
+            self.log("=" * 45, "#2ecc71")
+            self.log(f"📊 TOTAL CLEANABLE: {format_size(total)}", "#2ecc71")
+            self.log("=" * 45, "#2ecc71")
             
         except Exception as e:
-            self.log(f"❌ Error occurred: {e}")
+            self.log(f"❌ Error occurred: {e}", "#e74c3c")
         finally:
             self.operation_in_progress = False
             self.after(0, lambda: self.set_buttons_state(True))
@@ -1036,10 +1074,10 @@ class AssistantGUI(ctk.CTk):
         """Cleaning operation logic"""
         try:
             self.after(0, lambda: self.log_box.delete("0.0", "end"))
-            self.log("🧹 Starting cleanup...\n")
+            self.log("🧹 Starting cleanup...\n", "#3498db")
             
             if self.var_system.get():
-                self.log("📁 Cleaning system...")
+                self.log("\n─── 📁 CLEANING SYSTEM FOLDERS ───", "#f39c12")
                 for name, path in TARGET_DIRS.items():
                     if os.path.exists(path):
                         count = 0
@@ -1053,7 +1091,7 @@ class AssistantGUI(ctk.CTk):
                 self.log("")
 
             if self.var_browser.get():
-                self.log("🌐 Cleaning browsers...")
+                self.log("\n─── 🌐 CLEANING BROWSERS ───", "#f39c12")
                 
                 # Chromium-based browsers (Chrome, Edge, Brave, Opera)
                 for name, path in BROWSER_PATHS.items():
@@ -1079,7 +1117,7 @@ class AssistantGUI(ctk.CTk):
                 self.log("")
 
             if self.var_desktop.get():
-                self.log("🖥️ Organizing desktop...")
+                self.log("\n─── 🖥️ ORGANIZING DESKTOP ───", "#f39c12")
                 d_path = DESKTOP_PATH
                 self.log(f"   • Desktop path: {d_path}")
                 if os.path.exists(d_path):
@@ -1132,7 +1170,7 @@ class AssistantGUI(ctk.CTk):
             # Empty Recycle Bin / Trash
             if self.var_recycle_bin.get():
                 trash_name = "Recycle Bin" if IS_WINDOWS else "Trash"
-                self.log(f"🗑️ Emptying {trash_name}...")
+                self.log(f"\n─── 🗑️ EMPTYING {trash_name.upper()} ───", "#f39c12")
                 bin_size, bin_count = recycle_bin_size()
                 if bin_count > 0:
                     if empty_recycle_bin(self.log):
@@ -1141,12 +1179,12 @@ class AssistantGUI(ctk.CTk):
                     self.log(f"   ℹ️ {trash_name} is already empty")
                 self.log("")
 
-            self.log("=" * 45)
-            self.log("✅ OPERATION COMPLETED SUCCESSFULLY!")
-            self.log("=" * 45)
+            self.log("=" * 45, "#2ecc71")
+            self.log("✅ OPERATION COMPLETED SUCCESSFULLY!", "#2ecc71")
+            self.log("=" * 45, "#2ecc71")
             
         except Exception as e:
-            self.log(f"❌ Error occurred: {e}")
+            self.log(f"❌ Error occurred: {e}", "#e74c3c")
         finally:
             self.operation_in_progress = False
             self.after(0, lambda: self.set_buttons_state(True))
@@ -1165,8 +1203,8 @@ class AssistantGUI(ctk.CTk):
         
         # Create new window
         dialog = ctk.CTkToplevel(self)
-        dialog.title("🖼️ Change Wallpaper")
-        dialog.geometry("400x500")
+        dialog.title("✨ Wallpaper Studio")
+        dialog.geometry("450x600")
         dialog.resizable(False, False)
         dialog.transient(self)
         
@@ -1184,23 +1222,35 @@ class AssistantGUI(ctk.CTk):
         except:
             pass
         
+        # Header Frame
+        header = ctk.CTkFrame(dialog, fg_color="transparent")
+        header.pack(pady=(20, 10), fill="x")
+        
         # Title
         ctk.CTkLabel(
-            dialog,
-            text="🖼️ Select Wallpaper Category",
-            font=("Segoe UI", 18, "bold")
-        ).pack(pady=20)
+            header,
+            text="🖼️ Wallpaper Studio",
+            font=("Segoe UI", 24, "bold"),
+            text_color="#9b59b6"
+        ).pack(pady=(0, 5))
         
         ctk.CTkLabel(
-            dialog,
-            text="High quality wallpapers from Unsplash",
-            font=("Segoe UI", 12),
+            header,
+            text="Discover high-quality wallpapers from Unsplash.",
+            font=("Segoe UI", 13),
             text_color="gray"
         ).pack()
         
         # Category buttons
-        btn_frame = ctk.CTkScrollableFrame(dialog, width=350, height=300)
-        btn_frame.pack(pady=20, padx=20, fill="both", expand=True)
+        btn_frame = ctk.CTkScrollableFrame(
+            dialog, 
+            width=380, 
+            height=350,
+            corner_radius=15,
+            border_width=2,
+            border_color="#2c3e50"
+        )
+        btn_frame.pack(pady=15, padx=30, fill="both", expand=True)
         
         def select_category(category_key, category_val):
             dialog.destroy()
@@ -1210,24 +1260,26 @@ class AssistantGUI(ctk.CTk):
             btn = ctk.CTkButton(
                 btn_frame,
                 text=category_name,
-                font=("Segoe UI", 14),
-                width=300,
-                height=40,
+                font=("Segoe UI", 14, "bold"),
+                fg_color="#34495e",
+                hover_color="#9b59b6",
+                corner_radius=8,
+                height=45,
                 command=lambda k=category_name, v=category_val: select_category(k, v)
             )
-            btn.pack(pady=5)
+            btn.pack(pady=6, padx=10, fill="x")
         
         # Random button
         ctk.CTkButton(
             dialog,
-            text="🎲 Random",
-            font=("Segoe UI", 14, "bold"),
+            text="🎲 Surprise Me!",
+            font=("Segoe UI", 15, "bold"),
             fg_color="#e74c3c",
             hover_color="#c0392b",
-            width=200,
-            height=45,
+            corner_radius=10,
+            height=50,
             command=lambda: select_category("🎲 Random", "wallpaper")
-        ).pack(pady=15)
+        ).pack(pady=(0, 20), padx=30, fill="x")
 
     def change_wallpaper(self, category_name, category_val):
         """Change wallpaper"""
@@ -1237,7 +1289,7 @@ class AssistantGUI(ctk.CTk):
         def operation():
             try:
                 self.after(0, lambda: self.log_box.delete("0.0", "end"))
-                self.log(f"🖼️ Changing wallpaper...\n")
+                self.log(f"🖼️ Changing wallpaper...\n", "#3498db")
                 self.log(f"   📂 Category: {category_name}")
                 
                 # Download
@@ -1247,16 +1299,16 @@ class AssistantGUI(ctk.CTk):
                     # Set wallpaper
                     set_wallpaper(image_path, self.log)
                     self.log("")
-                    self.log("=" * 45)
-                    self.log("🎉 Your new wallpaper is ready!")
-                    self.log("=" * 45)
+                    self.log("=" * 45, "#2ecc71")
+                    self.log("🎉 Your new wallpaper is ready!", "#2ecc71")
+                    self.log("=" * 45, "#2ecc71")
                 else:
                     self.log("")
-                    self.log("❌ Could not download wallpaper")
-                    self.log("   Check your internet connection")
+                    self.log("❌ Could not download wallpaper", "#e74c3c")
+                    self.log("   Check your internet connection", "#e74c3c")
                     
             except Exception as e:
-                self.log(f"❌ Error: {e}")
+                self.log(f"❌ Error: {e}", "#e74c3c")
             finally:
                 self.operation_in_progress = False
                 self.after(0, lambda: self.set_buttons_state(True))
