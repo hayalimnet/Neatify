@@ -22,7 +22,7 @@ Before analysis, choose the cleanup categories with the checkboxes in the option
 ## Installation
 
 ### Windows
-1. Download [Neatify.exe](https://github.com/hayalimnet/Neatify/releases/download/v1.3.0/neatify.exe)
+1. Download the latest [Neatify release](https://github.com/hayalimnet/Neatify/releases)
 2. Run!
 
 > 💡 **Tip:** Run as Administrator for full system cleaning.
