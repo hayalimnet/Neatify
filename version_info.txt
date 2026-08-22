@@ -14,7 +14,7 @@ VSVersionInfo(
     StringFileInfo(
       [
         StringTable(
-          u'041F04B0',
+          u'040904B0',
           [
             StringStruct(u'CompanyName', u'Neatify'),
             StringStruct(u'FileDescription', u'PC Cleanup and Desktop Organizer'),
@@ -28,6 +28,6 @@ VSVersionInfo(
         )
       ]
     ),
-    VarFileInfo([VarStruct(u'Translation', [0x041F, 1200])])
+    VarFileInfo([VarStruct(u'Translation', [0x0409, 1200])])
   ]
 )
