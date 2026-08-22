@@ -2,15 +2,22 @@
 
 A cross-platform PC cleanup and desktop organizer tool.
 
+**Current version:** v1.3.0
+
+Open the in-app **About** panel for version information and the [Neatify GitHub repository](https://github.com/hayalimnet/Neatify).
+
 **Supports:** Windows & Linux (Ubuntu, Fedora, Arch, etc.)
 
 ## Features
 
-- 🗂️ **System Cleanup** - Removes temp files, cache, and logs
-- 🌐 **Browser Cleanup** - Clears cache for Chrome, Edge, Brave, Opera, Firefox
-- 🖥️ **Desktop Organizer** - Sorts files into folders by type (shortcuts organized into dedicated `Shortcuts/` folder)
+- 🗂️ **System Cleanup** - Lets users choose individual temp, cache, prefetch, and log targets
+- 🌐 **Safe Browser Cleanup** - Lets users choose browsers individually and clears disposable cache without removing login data by default
+- ⚠️ **Advanced Browser Cleanup** - Optional deeper cleanup with a clear site-data warning
+- 🖥️ **Desktop Organizer** - Previews file moves, handles name conflicts safely, and supports undo (shortcuts organized into dedicated `Shortcuts/` folder)
 - 🖼️ **Wallpaper Changer** - Downloads HD wallpapers from Unsplash
 - 🗑️ **Empty Trash** - One-click empty (Recycle Bin on Windows, Trash on Linux)
+
+Before analysis, choose the cleanup categories with the checkboxes in the options panel. After analysis, the embedded `Cleanup Details` panel lets users include or exclude individual cleanup targets before the confirmation preview. Desktop organization also provides a file-by-file move preview, optional conflict renaming, and an undo action. A fresh scan is required if the main cleanup selection changes.
 
 ## Installation
 

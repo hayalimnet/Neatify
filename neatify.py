@@ -8,6 +8,10 @@ import sys
 import threading
 import platform
 
+APP_NAME = "Neatify"
+APP_VERSION = "1.3.0"
+REPOSITORY_URL = "https://github.com/hayalimnet/Neatify"
+
 # Platform detection
 IS_WINDOWS = platform.system() == "Windows"
 IS_LINUX = platform.system() == "Linux"
@@ -157,17 +161,26 @@ else:  # Linux
         except:
             pass
 
-# Browser files/folders to delete (CACHE ONLY - safe)
-# Note: Cookies, Login Data and other sensitive files are NOT included
-BROWSER_CLEAN_LIST = [
-    # Cache folders
+# Browser files/folders for the optional advanced cleanup.
+# This list can include site data and may reset parts of web applications.
+BROWSER_ADVANCED_CLEAN_LIST = [
     "Cache", "Code Cache", "GPUCache", "ShaderCache", "GrShaderCache",
-    "Service Worker", "CacheStorage",
-    # Temporary files
-    "thumbnails", "Favicons", "Favicons-journal",
-    # Firefox cache
-    "cache2", "startupCache", "OfflineCache"
+    "Service Worker", "CacheStorage", "File System", "Local Storage",
+    "Session Storage", "IndexedDB", "blob_storage", "databases",
+    "Platform Notifications", "thumbnails", "Favicons", "Favicons-journal",
+    "Shortcuts", "Network Action Predictor", "cache2", "startupCache", "OfflineCache"
 ]
+
+# Safe mode only removes disposable browser cache folders. Cookies, history,
+# login data, Local Storage and IndexedDB are intentionally excluded.
+BROWSER_SAFE_CLEAN_LIST = [
+    "Cache", "Code Cache", "GPUCache", "ShaderCache", "GrShaderCache",
+    "Media Cache", "cache2", "startupCache", "OfflineCache"
+]
+
+def get_browser_clean_list(advanced=False):
+    """Return the browser paths eligible for the selected cleanup mode."""
+    return BROWSER_ADVANCED_CLEAN_LIST if advanced else BROWSER_SAFE_CLEAN_LIST
 
 DESKTOP_RULES = {
     'Images': ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.ico', '.tiff', '.tif', '.raw'],
@@ -622,28 +635,35 @@ def format_size(byte_size):
         byte_size /= 1024
     return f"{byte_size:.2f} TB"
 
-# Chromium browser files to delete (CACHE ONLY)
-# Note: History, Cookies, Login Data and other sensitive files are NOT included
-CHROMIUM_PROFILE_FILES = [
+# Chromium browser files used by advanced cleanup.
+CHROMIUM_ADVANCED_PROFILE_FILES = [
     "Favicons", "Favicons-journal",
     "Shortcuts", "Shortcuts-journal",
     "Network Action Predictor", "Network Action Predictor-journal"
 ]
 
-# Chromium browser folders to delete (CACHE)
-CHROMIUM_PROFILE_DIRS = [
+# Chromium browser folders used by advanced cleanup. Some of these contain
+# site data, so they are never removed by the default safe mode.
+CHROMIUM_ADVANCED_PROFILE_DIRS = [
     "Cache", "Code Cache", "GPUCache", "ShaderCache", "GrShaderCache",
     "Service Worker", "CacheStorage", "File System",
     "Local Storage", "Session Storage", "IndexedDB",
     "blob_storage", "databases", "Platform Notifications"
 ]
 
-def clean_chromium_profile(browser_path, log_func=None):
+# Disposable cache folders used by the default safe mode.
+CHROMIUM_SAFE_PROFILE_DIRS = [
+    "Cache", "Code Cache", "GPUCache", "ShaderCache", "GrShaderCache", "Media Cache"
+]
+
+def clean_chromium_profile(browser_path, log_func=None, advanced=False):
     """
     Clean Chromium-based browser profile folders.
     Scans all profiles: Default, Profile 1, Profile 2, etc.
     """
     deleted = 0
+    profile_files = CHROMIUM_ADVANCED_PROFILE_FILES if advanced else []
+    profile_dirs = CHROMIUM_ADVANCED_PROFILE_DIRS if advanced else CHROMIUM_SAFE_PROFILE_DIRS
     if not os.path.exists(browser_path):
         return 0
     
@@ -660,21 +680,22 @@ def clean_chromium_profile(browser_path, log_func=None):
     
     for profile in profiles:
         # Delete files (exact match)
-        for file_name in CHROMIUM_PROFILE_FILES:
+        for file_name in profile_files:
             file_path = os.path.join(profile, file_name)
             if os.path.exists(file_path):
                 if safe_delete(file_path, log_func):
                     deleted += 1
         
         # Delete folders
-        for folder_name in CHROMIUM_PROFILE_DIRS:
+        for folder_name in profile_dirs:
             folder_path = os.path.join(profile, folder_name)
             if os.path.exists(folder_path):
                 if safe_delete(folder_path, log_func):
                     deleted += 1
     
     # Also clean Cache folders in main directory
-    for folder_name in ["Cache", "GPUCache", "ShaderCache", "GrShaderCache"]:
+    main_cache_dirs = ["Cache", "GPUCache", "ShaderCache", "GrShaderCache", "Media Cache"]
+    for folder_name in main_cache_dirs:
         folder_path = os.path.join(browser_path, folder_name)
         if os.path.exists(folder_path):
             if safe_delete(folder_path, log_func):
@@ -712,11 +733,15 @@ def calculate_folder_size(path, filter_list=None):
     total = 0
     if not path or not os.path.exists(path):
         return 0
+    filter_names = {item.casefold() for item in filter_list} if filter_list else None
     try:
         for root, _, files in os.walk(path):
+            root_names = {part.casefold() for part in pathlib.Path(root).parts}
             for f in files:
                 if filter_list:
-                    if any(x.lower() in root.lower() or x.lower() in f.lower() for x in filter_list):
+                    # Match complete folder/file names so safe-mode estimates
+                    # do not accidentally include folders such as CacheStorage.
+                    if root_names.intersection(filter_names) or f.casefold() in filter_names:
                         try:
                             total += os.path.getsize(os.path.join(root, f))
                         except (OSError, PermissionError):
@@ -730,15 +755,70 @@ def calculate_folder_size(path, filter_list=None):
         pass
     return total
 
+def get_desktop_organization_plan(desktop_path):
+    """Build a previewable plan for files directly on the desktop."""
+    plan = []
+    if not desktop_path or not os.path.isdir(desktop_path):
+        return plan
+
+    try:
+        for file_name in os.listdir(desktop_path):
+            source_path = os.path.join(desktop_path, file_name)
+            if not os.path.isfile(source_path):
+                continue
+
+            extension = pathlib.Path(file_name).suffix.lower()
+            target_folder = next(
+                (
+                    folder
+                    for folder, extensions in DESKTOP_RULES.items()
+                    if extension in extensions
+                ),
+                None,
+            )
+            if not target_folder:
+                continue
+
+            target_dir = os.path.join(desktop_path, target_folder)
+            target_path = os.path.join(target_dir, file_name)
+            plan.append({
+                "name": file_name,
+                "source": source_path,
+                "target_dir": target_dir,
+                "target": target_path,
+                "folder": target_folder,
+                "conflict": os.path.exists(target_path),
+                "selected": True,
+            })
+    except (OSError, PermissionError):
+        pass
+
+    return plan
+
+def get_unique_path(path):
+    """Return a non-existing path by adding a numbered suffix."""
+    if not os.path.exists(path):
+        return path
+
+    path_obj = pathlib.Path(path)
+    counter = 1
+    while True:
+        candidate = path_obj.with_name(
+            f"{path_obj.stem} ({counter}){path_obj.suffix}"
+        )
+        if not candidate.exists():
+            return str(candidate)
+        counter += 1
+
 
 # --- GUI CLASS ---
 class AssistantGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Neatify v1.2.0")
-        self.geometry("750x600")
-        self.minsize(600, 500)
+        self.title(f"{APP_NAME} v{APP_VERSION}")
+        self.geometry("1100x760")
+        self.minsize(1000, 650)
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
         
@@ -747,14 +827,23 @@ class AssistantGUI(ctk.CTk):
         
         # Operation state
         self.operation_in_progress = False
+        self.scan_results = {}
+        self.scan_selection = None
+        self.last_scan_completed = False
+        self.cleanup_details = []
+        self.cleanup_selection = {}
+        self.desktop_plan = []
+        self.last_desktop_moves = []
+        self.rename_desktop_conflicts = False
+        self.delete_empty_desktop_folders = False
         
         # Grid settings
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(2, weight=1)
+        self.grid_columnconfigure((0, 1), weight=1)
+        self.grid_rowconfigure(3, weight=1)
 
         # Header Area
         self.header_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.header_frame.grid(row=0, column=0, pady=(15, 5), sticky="ew")
+        self.header_frame.grid(row=0, column=0, columnspan=2, pady=(15, 5), sticky="ew")
         
         self.title_label = ctk.CTkLabel(
             self.header_frame, 
@@ -790,7 +879,7 @@ class AssistantGUI(ctk.CTk):
             border_width=2,
             border_color="#2c3e50"
         )
-        self.options_frame.grid(row=1, column=0, padx=30, pady=10, sticky="ew")
+        self.options_frame.grid(row=1, column=0, columnspan=2, padx=30, pady=10, sticky="ew")
         self.options_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
 
         cb_font = ("Segoe UI", 14, "bold")
@@ -840,13 +929,135 @@ class AssistantGUI(ctk.CTk):
         )
         self.cb_recycle_bin.grid(row=0, column=3, padx=15, pady=20)
 
-        # Log Box
+        self.var_advanced_browser = ctk.BooleanVar(value=False)
+        self.cb_advanced_browser = ctk.CTkCheckBox(
+            self.options_frame,
+            text="⚠️ Advanced browser cleanup (site data may be removed)",
+            variable=self.var_advanced_browser,
+            font=("Segoe UI", 11),
+            text_color="#f39c12",
+            fg_color="#f39c12",
+            hover_color="#d68910"
+        )
+        self.cb_advanced_browser.grid(
+            row=1, column=0, columnspan=4, padx=15, pady=(0, 12), sticky="w"
+        )
+
+        # Scan summary cards
+        self.summary_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.summary_frame.grid(row=2, column=0, columnspan=2, padx=20, pady=(4, 0), sticky="ew")
+        self.summary_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
+
+        self.summary_values = {}
+        summary_cards = [
+            ("system", "🗂️ System", "#3498db"),
+            ("browser", "🌐 Browser", "#9b59b6"),
+            ("desktop", "🖥️ Desktop", "#f39c12"),
+            ("recycle_bin", trash_label, "#e74c3c"),
+        ]
+        for column, (key, title, color) in enumerate(summary_cards):
+            card = ctk.CTkFrame(
+                self.summary_frame,
+                corner_radius=12,
+                border_width=1,
+                border_color="#2c3e50"
+            )
+            card.grid(row=0, column=column, padx=5, sticky="ew")
+            ctk.CTkLabel(
+                card, text=title, font=("Segoe UI", 11, "bold"), text_color=color
+            ).pack(pady=(8, 0))
+            value_label = ctk.CTkLabel(
+                card, text="—", font=("Segoe UI", 14, "bold")
+            )
+            value_label.pack(pady=(2, 8))
+            self.summary_values[key] = value_label
+
+        # Cleanup details panel
+        self.details_frame = ctk.CTkFrame(
+            self,
+            corner_radius=12,
+            border_width=1,
+            border_color="#2c3e50",
+        )
+        self.details_frame.grid(row=3, column=0, padx=(20, 8), pady=(10, 0), sticky="nsew")
+        self.details_frame.grid_columnconfigure(0, weight=1)
+        self.details_frame.grid_rowconfigure(1, weight=1)
+
+        details_header = ctk.CTkFrame(self.details_frame, fg_color="transparent")
+        details_header.grid(row=0, column=0, padx=12, pady=(8, 0), sticky="ew")
+        details_header.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            details_header,
+            text="Cleanup Details",
+            font=("Segoe UI", 14, "bold"),
+            text_color="#3498db",
+        ).grid(row=0, column=0, sticky="w")
+        self.details_status_label = ctk.CTkLabel(
+            details_header,
+            text="Run Analyze to choose individual cleanup targets.",
+            font=("Segoe UI", 11),
+            text_color="gray",
+        )
+        self.details_status_label.grid(row=1, column=0, sticky="w", pady=(0, 4))
+
+        details_actions = ctk.CTkFrame(details_header, fg_color="transparent")
+        details_actions.grid(row=0, column=1, rowspan=2, sticky="e")
+        self.details_select_all_btn = ctk.CTkButton(
+            details_actions,
+            text="Select All",
+            command=lambda: self._set_all_detail_selections(True),
+            width=92,
+            height=28,
+            font=("Segoe UI", 11),
+            fg_color="#34495e",
+            hover_color="#2c3e50",
+        )
+        self.details_select_all_btn.pack(side="left", padx=3)
+        self.details_clear_all_btn = ctk.CTkButton(
+            details_actions,
+            text="Clear All",
+            command=lambda: self._set_all_detail_selections(False),
+            width=92,
+            height=28,
+            font=("Segoe UI", 11),
+            fg_color="#34495e",
+            hover_color="#2c3e50",
+        )
+        self.details_clear_all_btn.pack(side="left", padx=3)
+
+        self.details_panel = ctk.CTkScrollableFrame(
+            self.details_frame,
+            height=220,
+            corner_radius=8,
+        )
+        self.details_panel.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="nsew")
+        self.details_vars = {}
+        self.details_checks = {}
+        self._show_details_placeholder()
+
+        # Activity Log
+        self.log_frame = ctk.CTkFrame(
+            self,
+            corner_radius=12,
+            border_width=1,
+            border_color="#2c3e50",
+        )
+        self.log_frame.grid(row=3, column=1, padx=(8, 20), pady=(10, 0), sticky="nsew")
+        self.log_frame.grid_columnconfigure(0, weight=1)
+        self.log_frame.grid_rowconfigure(1, weight=1)
+        ctk.CTkLabel(
+            self.log_frame,
+            text="Activity Log",
+            font=("Segoe UI", 14, "bold"),
+            text_color="#2ecc71",
+        ).grid(row=0, column=0, padx=12, pady=(8, 4), sticky="w")
+
         self.log_box = ctk.CTkTextbox(
-            self, 
+            self.log_frame,
             font=("Consolas", 12),
             corner_radius=10
         )
-        self.log_box.grid(row=2, column=0, padx=20, pady=15, sticky="nsew")
+        self.log_box.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="nsew")
         self.log_box.insert("0.0", "🎉 Welcome!\n\nClick '🔍 Analyze' to scan your system.\n")
 
         # Progress bar
@@ -858,12 +1069,12 @@ class AssistantGUI(ctk.CTk):
             progress_color="#3498db",
             fg_color="#2c3e50"
         )
-        self.progress_bar.grid(row=3, column=0, padx=30, pady=(0, 15), sticky="ew")
+        self.progress_bar.grid(row=4, column=0, columnspan=2, padx=30, pady=(0, 15), sticky="ew")
         self.progress_bar.set(0)
 
         # Buttons
         self.btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.btn_frame.grid(row=4, column=0, pady=(0, 20))
+        self.btn_frame.grid(row=5, column=0, columnspan=2, pady=(0, 20))
 
         self.btn_analyze = ctk.CTkButton(
             self.btn_frame, 
@@ -899,6 +1110,31 @@ class AssistantGUI(ctk.CTk):
         )
         self.btn_wallpaper.grid(row=0, column=2, padx=10)
 
+        self.btn_undo = ctk.CTkButton(
+            self.btn_frame,
+            text="↩ Undo Organization",
+            fg_color="#34495e",
+            hover_color="#2c3e50",
+            command=self.undo_last_desktop_organization,
+            font=("Segoe UI", 13, "bold"),
+            width=180,
+            height=40,
+            state="disabled",
+        )
+        self.btn_undo.grid(row=0, column=3, padx=10)
+
+        self.btn_about = ctk.CTkButton(
+            self.btn_frame,
+            text="ℹ About",
+            fg_color="#2c3e50",
+            hover_color="#1f2d3a",
+            command=self.about_dialog,
+            font=("Segoe UI", 13, "bold"),
+            width=120,
+            height=40,
+        )
+        self.btn_about.grid(row=0, column=4, padx=10)
+
         # Window close event
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -910,6 +1146,82 @@ class AssistantGUI(ctk.CTk):
                 self.iconbitmap(icon_path)
         except Exception:
             pass  # Use default icon if not found
+
+    def about_dialog(self):
+        """Show application version and project information."""
+        if self.operation_in_progress:
+            return
+
+        dialog = ctk.CTkToplevel(self)
+        dialog.title(f"About {APP_NAME}")
+        dialog.geometry("500x430")
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+
+        ctk.CTkLabel(
+            dialog,
+            text="Ⓝ Neatify",
+            font=("Segoe UI", 32, "bold"),
+            text_color="#3498db",
+        ).pack(pady=(28, 4))
+        ctk.CTkLabel(
+            dialog,
+            text=f"Version {APP_VERSION}",
+            font=("Segoe UI", 15, "bold"),
+            text_color="#2ecc71",
+        ).pack(pady=(0, 18))
+        ctk.CTkLabel(
+            dialog,
+            text="A cross-platform PC cleanup and desktop organizer.",
+            font=("Segoe UI", 13),
+            text_color="gray",
+        ).pack(pady=4)
+        ctk.CTkLabel(
+            dialog,
+            text="Safe cleanup · Browser cache management · Desktop organization",
+            font=("Segoe UI", 11),
+            wraplength=420,
+            justify="center",
+        ).pack(pady=(4, 20))
+        ctk.CTkLabel(
+            dialog,
+            text="Source code and releases",
+            font=("Segoe UI", 12, "bold"),
+        ).pack(pady=(0, 6))
+        ctk.CTkLabel(
+            dialog,
+            text=REPOSITORY_URL,
+            font=("Segoe UI", 11),
+            text_color="#3498db",
+        ).pack(pady=(0, 10))
+
+        def open_repository():
+            import webbrowser
+            webbrowser.open(REPOSITORY_URL)
+
+        ctk.CTkButton(
+            dialog,
+            text="Open GitHub Repository",
+            command=open_repository,
+            width=220,
+            height=38,
+            fg_color="#34495e",
+            hover_color="#2c3e50",
+        ).pack(pady=4)
+        ctk.CTkLabel(
+            dialog,
+            text="MIT License · © 2026 Neatify",
+            font=("Segoe UI", 10),
+            text_color="gray",
+        ).pack(pady=(22, 0))
+        ctk.CTkButton(
+            dialog,
+            text="Close",
+            command=dialog.destroy,
+            width=100,
+            height=34,
+        ).pack(pady=(10, 18))
 
     def log(self, message, color=None):
         """Thread-safe logging"""
@@ -924,6 +1236,90 @@ class AssistantGUI(ctk.CTk):
             self.log_box.insert("end", f"\n{message}")
         self.log_box.see("end")
 
+    def _show_details_placeholder(self):
+        """Show the initial state of the embedded cleanup details panel."""
+        for child in self.details_panel.winfo_children():
+            child.destroy()
+        ctk.CTkLabel(
+            self.details_panel,
+            text="No analysis results yet.",
+            font=("Segoe UI", 12),
+            text_color="gray",
+        ).pack(anchor="w", padx=10, pady=8)
+        self.details_status_label.configure(
+            text="Run Analyze to choose individual cleanup targets."
+        )
+
+    def _populate_cleanup_details(self):
+        """Render analyzed cleanup targets inside the main window."""
+        for child in self.details_panel.winfo_children():
+            child.destroy()
+        self.details_vars = {}
+        self.details_checks = {}
+
+        if not self.cleanup_details:
+            self._show_details_placeholder()
+            return
+
+        grouped_details = {}
+        for detail in self.cleanup_details:
+            grouped_details.setdefault(detail["group"], []).append(detail)
+
+        for group, details in grouped_details.items():
+            ctk.CTkLabel(
+                self.details_panel,
+                text=group,
+                font=("Segoe UI", 12, "bold"),
+                text_color="#f39c12",
+            ).pack(anchor="w", padx=8, pady=(5, 2))
+
+            for detail in details:
+                key = detail["key"]
+                detail_var = ctk.BooleanVar(
+                    value=self.cleanup_selection.get(key, True)
+                )
+                self.details_vars[key] = detail_var
+                count_text = (
+                    f" · {detail['count']} item(s)"
+                    if "count" in detail else ""
+                )
+                check = ctk.CTkCheckBox(
+                    self.details_panel,
+                    text=f"{detail['label']} — {format_size(detail['size'])}{count_text}",
+                    variable=detail_var,
+                    command=lambda detail_key=key: self._sync_detail_selection(detail_key),
+                    font=("Segoe UI", 12),
+                    fg_color="#3498db",
+                    hover_color="#2980b9",
+                )
+                check.pack(anchor="w", padx=18, pady=3)
+                self.details_checks[key] = check
+
+        self._update_details_status()
+
+    def _sync_detail_selection(self, key):
+        """Persist a checkbox change from the embedded details panel."""
+        if key in self.details_vars:
+            self.cleanup_selection[key] = bool(self.details_vars[key].get())
+            self._update_details_status()
+
+    def _set_all_detail_selections(self, value):
+        """Select or clear all analyzed cleanup targets."""
+        for key, detail_var in self.details_vars.items():
+            detail_var.set(value)
+            self.cleanup_selection[key] = value
+        self._update_details_status()
+
+    def _update_details_status(self):
+        selected_count = sum(
+            1 for detail in self.cleanup_details
+            if self.cleanup_selection.get(detail["key"], True)
+        )
+        selected_size = self._selected_estimate()
+        self.details_status_label.configure(
+            text=f"{selected_count} target(s) selected · {format_size(selected_size)}"
+        )
+
     def set_buttons_state(self, enabled):
         """Enable/disable buttons"""
         state = "normal" if enabled else "disabled"
@@ -933,6 +1329,17 @@ class AssistantGUI(ctk.CTk):
         self.cb_browser.configure(state=state)
         self.cb_desktop.configure(state=state)
         self.cb_recycle_bin.configure(state=state)
+        self.cb_advanced_browser.configure(state=state)
+        self.btn_wallpaper.configure(state=state)
+        self.btn_undo.configure(
+            state="normal" if enabled and self.last_desktop_moves else "disabled"
+        )
+        self.btn_about.configure(state=state)
+        detail_state = state if self.cleanup_details else "disabled"
+        self.details_select_all_btn.configure(state=detail_state)
+        self.details_clear_all_btn.configure(state=detail_state)
+        for check in self.details_checks.values():
+            check.configure(state=detail_state)
         
         if enabled:
             self.progress_bar.stop()
@@ -940,10 +1347,89 @@ class AssistantGUI(ctk.CTk):
         else:
             self.progress_bar.start()
 
+    def _selection_state(self):
+        """Return the options used by the most recent scan."""
+        return (
+            bool(self.var_system.get()),
+            bool(self.var_browser.get()),
+            bool(self.var_desktop.get()),
+            bool(self.var_recycle_bin.get()),
+            bool(self.var_advanced_browser.get()),
+        )
+
+    def _selected_estimate(self):
+        """Return the estimated bytes for the selected categories."""
+        return sum(
+            detail.get("size", 0)
+            for detail in self.cleanup_details
+            if self.cleanup_selection.get(detail["key"], True)
+        )
+
+    def _selected_desktop_items(self):
+        """Return desktop files selected in the desktop preview."""
+        return [item for item in self.desktop_plan if item.get("selected", True)]
+
+    def _selected_cleanup_labels(self):
+        """Build grouped labels for the cleanup confirmation dialog."""
+        groups = {}
+        for detail in self.cleanup_details:
+            if self.cleanup_selection.get(detail["key"], True):
+                groups.setdefault(detail["group"], []).append(detail["label"])
+
+        labels = [
+            f"{group}: {', '.join(items)}"
+            for group, items in groups.items()
+        ]
+        if self.var_desktop.get() and self._selected_desktop_items():
+            labels.append(
+                f"Desktop organization ({len(self._selected_desktop_items())} file(s))"
+            )
+        return labels
+
+    def _update_summary(self, results):
+        """Update the compact scan summary shown above the details log."""
+        self.summary_values["system"].configure(
+            text=format_size(results.get("system", 0))
+        )
+        self.summary_values["browser"].configure(
+            text=format_size(results.get("browser", 0))
+        )
+        self.summary_values["desktop"].configure(
+            text=f"{results.get('desktop', 0)} files"
+        )
+        self.summary_values["recycle_bin"].configure(
+            text=format_size(results.get("recycle_bin", 0))
+        )
+        self.subtitle_label.configure(
+            text=f"Last scan: {format_size(results.get('total', 0))} cleanable space · Choose categories above before cleaning"
+        )
+        self._populate_cleanup_details()
+
+    def _invalidate_scan(self):
+        """Mark the summary stale after a cleanup changes the filesystem."""
+        self.last_scan_completed = False
+        self.scan_results = {}
+        self.cleanup_details = []
+        self.cleanup_selection = {}
+        self.details_vars = {}
+        self.details_checks = {}
+        for value_label in self.summary_values.values():
+            value_label.configure(text="—")
+        self._show_details_placeholder()
+        self.subtitle_label.configure(text="Cleanup completed · Run a new analysis for current results")
+
     def start_analysis(self):
         """Start analysis operation"""
         if self.operation_in_progress:
             return
+        self.last_scan_completed = False
+        self.scan_results = {}
+        self.cleanup_details = []
+        self.cleanup_selection = {}
+        self.desktop_plan = []
+        self.rename_desktop_conflicts = False
+        self.delete_empty_desktop_folders = False
+        self.scan_selection = self._selection_state()
         self.operation_in_progress = True
         self.set_buttons_state(False)
         threading.Thread(target=self.analysis_logic, daemon=True).start()
@@ -954,8 +1440,15 @@ class AssistantGUI(ctk.CTk):
             self.after(0, lambda: self.log_box.delete("0.0", "end"))
             self.log("🔍 Starting analysis...\n", "#3498db")
             
-            total = 0
-            
+            results = {
+                "system": 0,
+                "browser": 0,
+                "desktop": 0,
+                "recycle_bin": 0,
+                "total": 0,
+            }
+            cleanup_details = []
+            browser_clean_list = get_browser_clean_list(self.var_advanced_browser.get())
             # System
             if self.var_system.get():
                 self.log("\n─── 📁 SCANNING SYSTEM FOLDERS ───", "#f39c12")
@@ -964,9 +1457,16 @@ class AssistantGUI(ctk.CTk):
                     if os.path.exists(path):
                         size = calculate_folder_size(path)
                         s_size += size
+                        cleanup_details.append({
+                            "key": f"system:{name}",
+                            "group": "System",
+                            "label": name,
+                            "size": size,
+                            "path": path,
+                        })
                         self.log(f"   • {name}: {format_size(size)}")
                 self.log(f"   ➜ System Total: {format_size(s_size)}\n")
-                total += s_size
+                results["system"] = s_size
             
             # Browser
             if self.var_browser.get():
@@ -974,19 +1474,33 @@ class AssistantGUI(ctk.CTk):
                 b_size = 0
                 for name, path in BROWSER_PATHS.items():
                     if os.path.exists(path):
-                        size = calculate_folder_size(path, BROWSER_CLEAN_LIST)
+                        size = calculate_folder_size(path, browser_clean_list)
+                        cleanup_details.append({
+                            "key": f"browser:{name}",
+                            "group": "Browsers",
+                            "label": name,
+                            "size": size,
+                            "path": path,
+                        })
                         if size > 0:
                             b_size += size
                             self.log(f"   • {name}: {format_size(size)}")
                 
                 if os.path.exists(FIREFOX_PATH):
-                    ff_size = calculate_folder_size(FIREFOX_PATH, BROWSER_CLEAN_LIST)
+                    ff_size = calculate_folder_size(FIREFOX_PATH, browser_clean_list)
+                    cleanup_details.append({
+                        "key": "browser:Firefox",
+                        "group": "Browsers",
+                        "label": "Firefox",
+                        "size": ff_size,
+                        "path": FIREFOX_PATH,
+                    })
                     if ff_size > 0:
                         b_size += ff_size
                         self.log(f"   • Firefox: {format_size(ff_size)}")
                 
                 self.log(f"   ➜ Browser Total: {format_size(b_size)}\n")
-                total += b_size
+                results["browser"] = b_size
             
             # Desktop analysis
             if self.var_desktop.get():
@@ -994,17 +1508,14 @@ class AssistantGUI(ctk.CTk):
                 d_path = DESKTOP_PATH
                 self.log(f"   • Desktop path: {d_path}")
                 if os.path.exists(d_path):
-                    shortcut_exts = set(DESKTOP_RULES.get('Shortcuts', []))
-                    shortcut_count = 0
-                    other_file_count = 0
-                    for f in os.listdir(d_path):
-                        fp = os.path.join(d_path, f)
-                        if os.path.isfile(fp):
-                            ext = pathlib.Path(f).suffix.lower()
-                            if ext in shortcut_exts:
-                                shortcut_count += 1
-                            else:
-                                other_file_count += 1
+                    desktop_plan = get_desktop_organization_plan(d_path)
+                    self.desktop_plan = desktop_plan
+                    shortcut_exts = set(DESKTOP_RULES.get("Shortcuts", []))
+                    shortcut_count = sum(
+                        1 for item in desktop_plan
+                        if pathlib.Path(item["name"]).suffix.lower() in shortcut_exts
+                    )
+                    other_file_count = len(desktop_plan) - shortcut_count
                     empty_folder_count = len([d for d in os.listdir(d_path) 
                                              if os.path.isdir(os.path.join(d_path, d)) 
                                              and not os.listdir(os.path.join(d_path, d))])
@@ -1014,22 +1525,45 @@ class AssistantGUI(ctk.CTk):
                         self.log(f"   • Other files to organize: {other_file_count}")
                     if empty_folder_count > 0:
                         self.log(f"   • Empty folders to delete: {empty_folder_count}")
+                    conflict_count = sum(1 for item in desktop_plan if item["conflict"])
+                    if conflict_count > 0:
+                        self.log(f"   • Conflicts to review: {conflict_count}")
+                    results["desktop"] = len(desktop_plan)
                     self.log("")
+                else:
+                    self.desktop_plan = []
             
             # Recycle Bin / Trash analysis
             if self.var_recycle_bin.get():
                 trash_name = "Recycle Bin" if IS_WINDOWS else "Trash"
                 self.log(f"\n─── 🗑️ SCANNING {trash_name.upper()} ───", "#f39c12")
                 bin_size, bin_count = recycle_bin_size()
+                cleanup_details.append({
+                    "key": "recycle_bin",
+                    "group": "Recycle Bin" if IS_WINDOWS else "Trash",
+                    "label": "Recycle Bin" if IS_WINDOWS else "Trash",
+                    "size": bin_size,
+                    "count": int(bin_count),
+                })
                 if bin_count > 0:
                     self.log(f"   • {int(bin_count)} items, {format_size(bin_size)}")
-                    total += bin_size
+                    results["recycle_bin"] = bin_size
                 else:
                     self.log(f"   • {trash_name} is empty")
                 self.log("")
             
             self.log("=" * 45, "#2ecc71")
-            self.log(f"📊 TOTAL CLEANABLE: {format_size(total)}", "#2ecc71")
+            results["total"] = (
+                results["system"] + results["browser"] + results["recycle_bin"]
+            )
+            self.cleanup_details = cleanup_details
+            self.cleanup_selection = {
+                detail["key"]: True for detail in cleanup_details
+            }
+            self.scan_results = results
+            self.last_scan_completed = True
+            self.after(0, self._update_summary, results)
+            self.log(f"📊 TOTAL CLEANABLE: {format_size(results['total'])}", "#2ecc71")
             self.log("=" * 45, "#2ecc71")
             
         except Exception as e:
@@ -1038,29 +1572,45 @@ class AssistantGUI(ctk.CTk):
             self.operation_in_progress = False
             self.after(0, lambda: self.set_buttons_state(True))
 
-    def start_cleaning(self):
+    def start_cleaning(self, show_desktop_preview=True):
         """Start cleaning operation"""
         if self.operation_in_progress:
             return
-        
-        # Get confirmation
-        selections = []
-        if self.var_system.get():
-            selections.append("System files")
-        if self.var_browser.get():
-            selections.append("Browser cache")
-        if self.var_desktop.get():
-            selections.append("Desktop organization")
-        if self.var_recycle_bin.get():
-            selections.append("Empty Recycle Bin" if IS_WINDOWS else "Empty Trash")
-        
-        if not selections:
-            messagebox.showwarning("Warning", "Please select at least one option.")
+
+        if not self.last_scan_completed:
+            messagebox.showwarning(
+                "New analysis required",
+                "Run a fresh analysis before cleanup."
+            )
+            return
+
+        if self.scan_selection != self._selection_state():
+            messagebox.showwarning(
+                "Cleanup selection changed",
+                "The cleanup selection changed after the last analysis.\n"
+                "Run a new analysis to refresh the results."
+            )
             return
         
+        if show_desktop_preview and self.var_desktop.get() and self.desktop_plan:
+            self.desktop_preview_dialog()
+            return
+
+        # Get confirmation from the selected detail rows.
+        selections = self._selected_cleanup_labels()
+        if not selections:
+            messagebox.showwarning("Warning", "Please select at least one cleanup category.")
+            return
+        
+        estimated = self._selected_estimate()
+        advanced_warning = "\n\n⚠️ Advanced browser cleanup is enabled: some site data may be removed." if self.var_advanced_browser.get() else ""
         confirm = messagebox.askyesno(
-            "Confirmation", 
-            f"The following operations will be performed:\n\n• " + "\n• ".join(selections) + "\n\nContinue?"
+            "Cleanup preview",
+            "Based on the latest analysis, these operations will be performed:\n\n• "
+            + "\n• ".join(selections)
+            + f"\n\nEstimated space: {format_size(estimated)}"
+            + advanced_warning
+            + "\n\nDo you want to continue?"
         )
         
         if not confirm:
@@ -1070,15 +1620,145 @@ class AssistantGUI(ctk.CTk):
         self.set_buttons_state(False)
         threading.Thread(target=self.cleaning_logic, daemon=True).start()
 
+    def desktop_preview_dialog(self):
+        """Show the desktop move plan before any files are changed."""
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Desktop Organization Preview")
+        dialog.geometry("760x600")
+        dialog.minsize(650, 500)
+        dialog.resizable(True, True)
+        dialog.transient(self)
+        dialog.grab_set()
+
+        header = ctk.CTkFrame(dialog, fg_color="transparent")
+        header.pack(fill="x", padx=24, pady=(20, 8))
+        ctk.CTkLabel(
+            header,
+            text="🖥️ Desktop Organization Preview",
+            font=("Segoe UI", 23, "bold"),
+            text_color="#f39c12",
+        ).pack(anchor="w")
+
+        conflict_count = sum(1 for item in self.desktop_plan if item["conflict"])
+        summary_text = f"{len(self.desktop_plan)} file(s) will be organized."
+        if conflict_count:
+            summary_text += f" {conflict_count} conflict(s) found."
+        ctk.CTkLabel(
+            header,
+            text=summary_text,
+            font=("Segoe UI", 13),
+            text_color="gray",
+        ).pack(anchor="w", pady=(3, 0))
+
+        list_frame = ctk.CTkScrollableFrame(
+            dialog,
+            corner_radius=12,
+            border_width=1,
+            border_color="#2c3e50",
+        )
+        list_frame.pack(fill="both", expand=True, padx=24, pady=12)
+        list_frame.grid_columnconfigure(0, weight=3)
+        list_frame.grid_columnconfigure(1, weight=2)
+        list_frame.grid_columnconfigure(2, weight=2)
+
+        desktop_vars = {}
+        for row, item in enumerate(self.desktop_plan):
+            status = "Conflict — skip by default" if item["conflict"] else "Ready"
+            status_color = "#e74c3c" if item["conflict"] else "#2ecc71"
+            desktop_var = ctk.BooleanVar(value=item.get("selected", True))
+            desktop_vars[row] = desktop_var
+            ctk.CTkCheckBox(
+                list_frame,
+                text=item["name"],
+                variable=desktop_var,
+                font=("Segoe UI", 12),
+                fg_color="#3498db",
+                hover_color="#2980b9",
+            ).grid(row=row, column=0, padx=10, pady=6, sticky="ew")
+            ctk.CTkLabel(
+                list_frame,
+                text=f"→ {item['folder']}/",
+                anchor="w",
+                font=("Segoe UI", 12),
+                text_color="#3498db",
+            ).grid(row=row, column=1, padx=10, pady=6, sticky="ew")
+            ctk.CTkLabel(
+                list_frame,
+                text=status,
+                anchor="w",
+                font=("Segoe UI", 11),
+                text_color=status_color,
+            ).grid(row=row, column=2, padx=10, pady=6, sticky="ew")
+
+        options = ctk.CTkFrame(dialog, fg_color="transparent")
+        options.pack(fill="x", padx=24, pady=(0, 8))
+        rename_var = ctk.BooleanVar(value=False)
+        delete_empty_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(
+            options,
+            text="Rename conflicting files automatically",
+            variable=rename_var,
+            font=("Segoe UI", 12),
+            fg_color="#3498db",
+            hover_color="#2980b9",
+        ).pack(anchor="w", pady=3)
+        ctk.CTkCheckBox(
+            options,
+            text="Delete empty desktop folders",
+            variable=delete_empty_var,
+            font=("Segoe UI", 12),
+            fg_color="#e67e22",
+            hover_color="#d35400",
+        ).pack(anchor="w", pady=3)
+
+        buttons = ctk.CTkFrame(dialog, fg_color="transparent")
+        buttons.pack(fill="x", padx=24, pady=(4, 20))
+
+        def cancel_preview():
+            dialog.grab_release()
+            dialog.destroy()
+
+        def continue_to_confirmation():
+            for row, item in enumerate(self.desktop_plan):
+                item["selected"] = bool(desktop_vars[row].get())
+            self.rename_desktop_conflicts = bool(rename_var.get())
+            self.delete_empty_desktop_folders = bool(delete_empty_var.get())
+            dialog.grab_release()
+            dialog.destroy()
+            self.start_cleaning(show_desktop_preview=False)
+
+        ctk.CTkButton(
+            buttons,
+            text="Cancel",
+            command=cancel_preview,
+            fg_color="#34495e",
+            hover_color="#2c3e50",
+            width=130,
+            height=38,
+        ).pack(side="right", padx=(10, 0))
+        ctk.CTkButton(
+            buttons,
+            text="Continue",
+            command=continue_to_confirmation,
+            fg_color="#2ecc71",
+            hover_color="#27ae60",
+            width=150,
+            height=38,
+        ).pack(side="right")
+
     def cleaning_logic(self):
         """Cleaning operation logic"""
         try:
             self.after(0, lambda: self.log_box.delete("0.0", "end"))
             self.log("🧹 Starting cleanup...\n", "#3498db")
+            desktop_moves = []
             
             if self.var_system.get():
                 self.log("\n─── 📁 CLEANING SYSTEM FOLDERS ───", "#f39c12")
                 for name, path in TARGET_DIRS.items():
+                    if not self.cleanup_selection.get(f"system:{name}", True):
+                        self.log(f"   • {name}: skipped by user")
+                        continue
                     if os.path.exists(path):
                         count = 0
                         try:
@@ -1093,20 +1773,29 @@ class AssistantGUI(ctk.CTk):
             if self.var_browser.get():
                 self.log("\n─── 🌐 CLEANING BROWSERS ───", "#f39c12")
                 
+                advanced_browser = self.var_advanced_browser.get()
+                browser_clean_list = get_browser_clean_list(advanced_browser)
+
                 # Chromium-based browsers (Chrome, Edge, Brave, Opera)
                 for name, path in BROWSER_PATHS.items():
+                    if not self.cleanup_selection.get(f"browser:{name}", True):
+                        self.log(f"   • {name}: skipped by user")
+                        continue
                     if os.path.exists(path):
-                        count = clean_chromium_profile(path)
+                        count = clean_chromium_profile(path, self.log, advanced=advanced_browser)
                         if count > 0:
                             self.log(f"   ✓ {name}: {count} items cleaned")
                 
                 # Firefox (different structure)
-                if os.path.exists(FIREFOX_PATH):
+                if (
+                    os.path.exists(FIREFOX_PATH)
+                    and self.cleanup_selection.get("browser:Firefox", True)
+                ):
                     ff_count = 0
                     try:
                         for root, dirs, files in os.walk(FIREFOX_PATH, topdown=False):
                             for n in files + dirs:
-                                if any(x.lower() == n.lower() or x.lower() in n.lower() for x in BROWSER_CLEAN_LIST):
+                                if any(x.lower() == n.lower() or x.lower() in n.lower() for x in browser_clean_list):
                                     if safe_delete(os.path.join(root, n)):
                                         ff_count += 1
                         if ff_count > 0:
@@ -1123,52 +1812,76 @@ class AssistantGUI(ctk.CTk):
                 if os.path.exists(d_path):
                     moved = 0
                     shortcuts_moved = 0
+                    skipped_conflicts = 0
+                    missing_files = 0
                     deleted_folders = 0
-                    shortcut_exts = set(DESKTOP_RULES.get('Shortcuts', []))
-                    
-                    # Move files to categories
-                    for file in os.listdir(d_path):
-                        f_path = os.path.join(d_path, file)
-                        if os.path.isfile(f_path):
-                            ext = pathlib.Path(file).suffix.lower()
-                            for folder, extensions in DESKTOP_RULES.items():
-                                if ext in extensions:
-                                    target = os.path.join(d_path, folder)
-                                    os.makedirs(target, exist_ok=True)
-                                    try:
-                                        shutil.move(f_path, os.path.join(target, file))
-                                        if folder == 'Shortcuts':
-                                            shortcuts_moved += 1
-                                        else:
-                                            moved += 1
-                                    except Exception:
-                                        pass
-                                    break
-                    
-                    # Delete empty folders (only on desktop, don't recurse)
-                    for item in os.listdir(d_path):
-                        item_path = os.path.join(d_path, item)
-                        if os.path.isdir(item_path):
-                            try:
-                                # Check if folder is empty
-                                if not os.listdir(item_path):
-                                    os.rmdir(item_path)
-                                    deleted_folders += 1
-                            except Exception:
-                                pass
+                    for item in self.desktop_plan:
+                        if not item.get("selected", True):
+                            continue
+                        source_path = item["source"]
+                        if not os.path.exists(source_path):
+                            missing_files += 1
+                            continue
+
+                        destination = item["target"]
+                        if os.path.exists(destination):
+                            if self.rename_desktop_conflicts:
+                                destination = get_unique_path(destination)
+                            else:
+                                skipped_conflicts += 1
+                                continue
+
+                        try:
+                            os.makedirs(item["target_dir"], exist_ok=True)
+                            shutil.move(source_path, destination)
+                            desktop_moves.append({
+                                "source": source_path,
+                                "destination": destination,
+                            })
+                            if item["folder"] == "Shortcuts":
+                                shortcuts_moved += 1
+                            else:
+                                moved += 1
+                        except Exception as error:
+                            self.log(
+                                f"   ⚠️ Could not move {item['name']}: {type(error).__name__}"
+                            )
+
+                    self.last_desktop_moves = desktop_moves
+
+                    if self.delete_empty_desktop_folders:
+                        # Delete empty folders only when explicitly selected.
+                        for item in os.listdir(d_path):
+                            item_path = os.path.join(d_path, item)
+                            if os.path.isdir(item_path):
+                                try:
+                                    if not os.listdir(item_path):
+                                        os.rmdir(item_path)
+                                        deleted_folders += 1
+                                except Exception:
+                                    pass
                     
                     if shortcuts_moved > 0:
                         self.log(f"   ✓ {shortcuts_moved} shortcuts organized → Shortcuts/")
                     if moved > 0:
                         self.log(f"   ✓ {moved} files organized")
+                    if skipped_conflicts > 0:
+                        self.log(f"   ℹ️ {skipped_conflicts} conflicting files skipped")
+                    if missing_files > 0:
+                        self.log(f"   ℹ️ {missing_files} files were no longer found")
                     if shortcuts_moved == 0 and moved == 0:
                         self.log("   ℹ️ No files to organize")
                     if deleted_folders > 0:
                         self.log(f"   ✓ {deleted_folders} empty folders deleted")
+                    elif not self.delete_empty_desktop_folders:
+                        self.log("   ℹ️ Empty folders were left untouched")
                     self.log("")
 
             # Empty Recycle Bin / Trash
-            if self.var_recycle_bin.get():
+            if (
+                self.var_recycle_bin.get()
+                and self.cleanup_selection.get("recycle_bin", True)
+            ):
                 trash_name = "Recycle Bin" if IS_WINDOWS else "Trash"
                 self.log(f"\n─── 🗑️ EMPTYING {trash_name.upper()} ───", "#f39c12")
                 bin_size, bin_count = recycle_bin_size()
@@ -1188,6 +1901,57 @@ class AssistantGUI(ctk.CTk):
         finally:
             self.operation_in_progress = False
             self.after(0, lambda: self.set_buttons_state(True))
+            self.after(0, self._invalidate_scan)
+
+    def undo_last_desktop_organization(self):
+        """Restore files moved by the most recent desktop organization."""
+        if self.operation_in_progress or not self.last_desktop_moves:
+            return
+
+        if not messagebox.askyesno(
+            "Undo Desktop Organization",
+            "Move the files from the last organization back to the desktop?"
+        ):
+            return
+
+        self.operation_in_progress = True
+        self.set_buttons_state(False)
+        threading.Thread(target=self.undo_desktop_logic, daemon=True).start()
+
+    def undo_desktop_logic(self):
+        """Undo the latest desktop move journal in reverse order."""
+        try:
+            self.after(0, lambda: self.log_box.delete("0.0", "end"))
+            self.log("↩ Undoing desktop organization...\n", "#3498db")
+            restored = 0
+            skipped = 0
+
+            for move in reversed(self.last_desktop_moves):
+                source_path = move["source"]
+                destination = move["destination"]
+                if not os.path.exists(destination) or os.path.exists(source_path):
+                    skipped += 1
+                    continue
+                try:
+                    shutil.move(destination, source_path)
+                    restored += 1
+                except Exception as error:
+                    skipped += 1
+                    self.log(
+                        f"   ⚠️ Could not restore {os.path.basename(source_path)}: {type(error).__name__}"
+                    )
+
+            self.last_desktop_moves = []
+            self.log(f"   ✓ {restored} file(s) restored")
+            if skipped > 0:
+                self.log(f"   ℹ️ {skipped} file(s) could not be restored")
+            self.log("✅ Desktop organization undone", "#2ecc71")
+        except Exception as error:
+            self.log(f"❌ Undo failed: {type(error).__name__}", "#e74c3c")
+        finally:
+            self.operation_in_progress = False
+            self.after(0, lambda: self.set_buttons_state(True))
+            self.after(0, self._invalidate_scan)
 
     def on_close(self):
         """Window close handler"""
