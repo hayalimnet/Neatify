@@ -27,6 +27,8 @@ Before analysis, choose the cleanup categories with the checkboxes in the option
 
 > 💡 **Tip:** Run as Administrator for full system cleaning.
 
+Windows releases are built with Nuitka to reduce antivirus false positives. For a local build, install the dependencies and Nuitka, then run `build_neatify.bat`.
+
 ### Linux
 
 **One-liner install (Ubuntu/Debian/Fedora/Arch):**
@@ -54,7 +56,7 @@ neatify
 - **Wallpapers are saved to:**
   - Windows: `%LOCALAPPDATA%\Neatify\wallpaper.jpg`
   - Linux: `~/.local/share/neatify/wallpaper.jpg`
-- **Antivirus Warning:** Some antivirus may flag this as false positive. The source code is open for inspection.
+- **Antivirus Warning:** Antivirus software can occasionally flag unsigned cleanup utilities as false positives. The source code is open for inspection, and Windows releases are built with Nuitka.
 
 ## Custom API Key (Optional)
 
