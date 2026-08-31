@@ -12,6 +12,9 @@ dist/
 *.dist/
 *.onefile-build/
 
+# Legacy PyInstaller source checkout; Neatify releases use Nuitka.
+pyinstaller_src/
+
 # Build scripts (not needed for users)
 version_info.txt
 

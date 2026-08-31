@@ -98,7 +98,7 @@ def is_admin():
 
 # --- RESOURCE PATH (FOR EXE) ---
 def resource_path(relative_path):
-    """Returns the path to resource files when packaged with PyInstaller"""
+    """Return the path to bundled resource files in frozen application builds."""
     if hasattr(sys, '_MEIPASS'):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.abspath("."), relative_path)
