@@ -22,12 +22,15 @@ echo.
     --onefile ^
     --windows-console-mode=disable ^
     --windows-icon-from-ico=neatify.ico ^
+    --zig ^
+    --assume-yes-for-downloads ^
     --enable-plugin=tk-inter ^
     --include-data-files=neatify.ico=neatify.ico ^
+    --include-data-files=neatify-logo.png=neatify-logo.png ^
     --company-name="Neatify" ^
     --product-name="Neatify" ^
-    --file-version=1.3.0 ^
-    --product-version=1.3.0 ^
+    --file-version=1.3.1 ^
+    --product-version=1.3.1 ^
     --file-description="PC Cleaning and Optimization Tool" ^
     --copyright="2026" ^
     --output-filename=Neatify.exe ^

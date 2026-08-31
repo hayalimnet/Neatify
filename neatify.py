@@ -8,8 +8,13 @@ import sys
 import threading
 import platform
 
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
+
 APP_NAME = "Neatify"
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.3.1"
 REPOSITORY_URL = "https://github.com/hayalimnet/Neatify"
 
 # Platform detection
@@ -184,14 +189,14 @@ def get_browser_clean_list(advanced=False):
 
 DESKTOP_RULES = {
     'Images': ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.ico', '.tiff', '.tif', '.raw'],
-    'Documents': ['.pdf', '.docx', '.doc', '.txt', '.xlsx', '.xls', '.pptx', '.ppt', '.odt', '.rtf', '.log', '.md'],
+    'Documents': ['.pdf', '.docx', '.doc', '.txt', '.xlsx', '.xls', '.pptx', '.ppt', '.odt', '.rtf', '.log', '.md', '.pub', '.mobi'],
     'Programs': ['.exe', '.msi', '.bat', '.ps1', '.cmd', '.vbs', '.reg'],
     'Shortcuts': ['.lnk', '.url'],
     'Archives': ['.zip', '.rar', '.7z', '.iso', '.tar', '.gz', '.bz2', '.xz'],
     'Code': ['.py', '.js', '.html', '.css', '.json', '.cpp', '.sql', '.java', '.cs', '.ts', '.jsx', '.tsx', '.xml', '.yaml', '.yml'],
     'Fonts': ['.ttf', '.otf', '.woff', '.woff2', '.eot'],
     'Videos': ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm'],
-    'Music': ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'],
+    'Music': ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a', '.mid', '.midi'],
     'Design': ['.psd', '.ai', '.eps', '.svg', '.fig', '.xd', '.sketch'],
     'Database': ['.db', '.sqlite', '.sql', '.mdb', '.accdb'],
     '3D_CAD': ['.stl', '.obj', '.fbx', '.blend', '.dwg', '.dxf'],
@@ -662,10 +667,11 @@ def clean_chromium_profile(browser_path, log_func=None, advanced=False):
     Scans all profiles: Default, Profile 1, Profile 2, etc.
     """
     deleted = 0
+    freed_bytes = 0
     profile_files = CHROMIUM_ADVANCED_PROFILE_FILES if advanced else []
     profile_dirs = CHROMIUM_ADVANCED_PROFILE_DIRS if advanced else CHROMIUM_SAFE_PROFILE_DIRS
     if not os.path.exists(browser_path):
-        return 0
+        return 0, 0
     
     # Find profile folders (Default, Profile 1, Profile 2...)
     profiles = []
@@ -683,25 +689,31 @@ def clean_chromium_profile(browser_path, log_func=None, advanced=False):
         for file_name in profile_files:
             file_path = os.path.join(profile, file_name)
             if os.path.exists(file_path):
+                item_size = calculate_path_size(file_path)
                 if safe_delete(file_path, log_func):
                     deleted += 1
+                    freed_bytes += item_size
         
         # Delete folders
         for folder_name in profile_dirs:
             folder_path = os.path.join(profile, folder_name)
             if os.path.exists(folder_path):
+                item_size = calculate_path_size(folder_path)
                 if safe_delete(folder_path, log_func):
                     deleted += 1
+                    freed_bytes += item_size
     
     # Also clean Cache folders in main directory
     main_cache_dirs = ["Cache", "GPUCache", "ShaderCache", "GrShaderCache", "Media Cache"]
     for folder_name in main_cache_dirs:
         folder_path = os.path.join(browser_path, folder_name)
         if os.path.exists(folder_path):
+            item_size = calculate_path_size(folder_path)
             if safe_delete(folder_path, log_func):
                 deleted += 1
+                freed_bytes += item_size
     
-    return deleted
+    return deleted, freed_bytes
 
 def safe_delete(path, log_func=None, max_attempts=3):
     """Safely delete a file or folder. Retries for locked files."""
@@ -754,6 +766,17 @@ def calculate_folder_size(path, filter_list=None):
     except (OSError, PermissionError):
         pass
     return total
+
+def calculate_path_size(path):
+    """Return the current size of one file or directory before it is removed."""
+    if not path or not os.path.exists(path):
+        return 0
+    try:
+        if os.path.isfile(path) or os.path.islink(path):
+            return os.path.getsize(path)
+    except (OSError, PermissionError):
+        return 0
+    return calculate_folder_size(path)
 
 def get_desktop_organization_plan(desktop_path):
     """Build a previewable plan for files directly on the desktop."""
@@ -845,13 +868,30 @@ class AssistantGUI(ctk.CTk):
         self.header_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.header_frame.grid(row=0, column=0, columnspan=2, pady=(15, 5), sticky="ew")
         
+        brand_row = ctk.CTkFrame(self.header_frame, fg_color="transparent")
+        brand_row.pack()
+        self.brand_logo = None
+        logo_path = resource_path("neatify-logo.png")
+        if Image is not None and os.path.exists(logo_path):
+            try:
+                logo_image = Image.open(logo_path)
+                self.brand_logo = ctk.CTkImage(
+                    light_image=logo_image,
+                    dark_image=logo_image,
+                    size=(48, 48),
+                )
+                ctk.CTkLabel(brand_row, text="", image=self.brand_logo).pack(
+                    side="left", padx=(0, 10)
+                )
+            except Exception:
+                self.brand_logo = None
         self.title_label = ctk.CTkLabel(
-            self.header_frame, 
-            text="Ⓝ Neatify", 
+            brand_row,
+            text="Neatify",
             font=("Segoe UI", 36, "bold"),
             text_color="#3498db"
         )
-        self.title_label.pack()
+        self.title_label.pack(side="left")
         
         self.subtitle_label = ctk.CTkLabel(
             self.header_frame,
@@ -1405,7 +1445,7 @@ class AssistantGUI(ctk.CTk):
         )
         self._populate_cleanup_details()
 
-    def _invalidate_scan(self):
+    def _invalidate_scan(self, freed_bytes=None):
         """Mark the summary stale after a cleanup changes the filesystem."""
         self.last_scan_completed = False
         self.scan_results = {}
@@ -1416,7 +1456,20 @@ class AssistantGUI(ctk.CTk):
         for value_label in self.summary_values.values():
             value_label.configure(text="—")
         self._show_details_placeholder()
-        self.subtitle_label.configure(text="Cleanup completed · Run a new analysis for current results")
+        if freed_bytes is None:
+            self.subtitle_label.configure(text="Cleanup completed · Run a new analysis for current results")
+        else:
+            self.subtitle_label.configure(
+                text=f"Cleanup completed · {format_size(freed_bytes)} freed · Run a new analysis for current results"
+            )
+
+    def _finish_cleanup(self, freed_bytes):
+        """Show the measured cleanup result after the worker has finished."""
+        self._invalidate_scan(freed_bytes)
+        messagebox.showinfo(
+            "Cleanup complete",
+            f"Cleanup completed successfully.\n\nSpace freed: {format_size(freed_bytes)}",
+        )
 
     def start_analysis(self):
         """Start analysis operation"""
@@ -1640,15 +1693,49 @@ class AssistantGUI(ctk.CTk):
         ).pack(anchor="w")
 
         conflict_count = sum(1 for item in self.desktop_plan if item["conflict"])
-        summary_text = f"{len(self.desktop_plan)} file(s) will be organized."
+        summary_text = f"{len(self.desktop_plan)} file(s) can be organized."
         if conflict_count:
             summary_text += f" {conflict_count} conflict(s) found."
-        ctk.CTkLabel(
+        summary_label = ctk.CTkLabel(
             header,
             text=summary_text,
             font=("Segoe UI", 13),
             text_color="gray",
-        ).pack(anchor="w", pady=(3, 0))
+        )
+        summary_label.pack(anchor="w", pady=(3, 0))
+
+        # Keep category filters separate from item selection. This lets users
+        # narrow the list (for example to Shortcuts or Music) and then select
+        # every currently visible file in one action.
+        desktop_vars = {
+            index: ctk.BooleanVar(value=item.get("selected", True))
+            for index, item in enumerate(self.desktop_plan)
+        }
+        folders = list(dict.fromkeys(item["folder"] for item in self.desktop_plan))
+        filter_vars = {folder: ctk.BooleanVar(value=True) for folder in folders}
+
+        filters_frame = ctk.CTkFrame(
+            dialog,
+            corner_radius=10,
+            border_width=1,
+            border_color="#2c3e50",
+        )
+        filters_frame.pack(fill="x", padx=24, pady=(0, 8))
+        filters_frame.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            filters_frame,
+            text="Filter desktop items by category",
+            font=("Segoe UI", 12, "bold"),
+            text_color="#3498db",
+        ).grid(row=0, column=0, padx=12, pady=(8, 2), sticky="w")
+
+        filter_actions = ctk.CTkFrame(filters_frame, fg_color="transparent")
+        filter_actions.grid(row=0, column=1, padx=8, pady=(6, 0), sticky="e")
+
+        categories_frame = ctk.CTkFrame(filters_frame, fg_color="transparent")
+        categories_frame.grid(row=1, column=0, columnspan=2, padx=10, pady=(0, 8), sticky="ew")
+        for column in range(3):
+            categories_frame.grid_columnconfigure(column, weight=1)
 
         list_frame = ctk.CTkScrollableFrame(
             dialog,
@@ -1661,34 +1748,101 @@ class AssistantGUI(ctk.CTk):
         list_frame.grid_columnconfigure(1, weight=2)
         list_frame.grid_columnconfigure(2, weight=2)
 
-        desktop_vars = {}
-        for row, item in enumerate(self.desktop_plan):
-            status = "Conflict — skip by default" if item["conflict"] else "Ready"
-            status_color = "#e74c3c" if item["conflict"] else "#2ecc71"
-            desktop_var = ctk.BooleanVar(value=item.get("selected", True))
-            desktop_vars[row] = desktop_var
+        def visible_indexes():
+            return [
+                index for index, item in enumerate(self.desktop_plan)
+                if filter_vars[item["folder"]].get()
+            ]
+
+        def render_list():
+            for child in list_frame.winfo_children():
+                child.destroy()
+            indexes = visible_indexes()
+            selected_count = sum(1 for index in indexes if desktop_vars[index].get())
+            summary_label.configure(
+                text=(
+                    f"{len(indexes)} item(s) shown · {selected_count} selected. "
+                    "Use Select Filtered to select every visible item."
+                )
+            )
+            if not indexes:
+                ctk.CTkLabel(
+                    list_frame,
+                    text="No desktop items match the selected filters.",
+                    font=("Segoe UI", 12),
+                    text_color="gray",
+                ).grid(row=0, column=0, columnspan=3, padx=10, pady=12, sticky="w")
+                return
+            for row, index in enumerate(indexes):
+                item = self.desktop_plan[index]
+                status = "Conflict — will be skipped" if item["conflict"] else "Ready"
+                status_color = "#e74c3c" if item["conflict"] else "#2ecc71"
+                ctk.CTkCheckBox(
+                    list_frame,
+                    text=item["name"],
+                    variable=desktop_vars[index],
+                    command=render_list,
+                    font=("Segoe UI", 12),
+                    fg_color="#3498db",
+                    hover_color="#2980b9",
+                ).grid(row=row, column=0, padx=10, pady=6, sticky="ew")
+                ctk.CTkLabel(
+                    list_frame,
+                    text=f"→ {item['folder']}/",
+                    anchor="w",
+                    font=("Segoe UI", 12),
+                    text_color="#3498db",
+                ).grid(row=row, column=1, padx=10, pady=6, sticky="ew")
+                ctk.CTkLabel(
+                    list_frame,
+                    text=status,
+                    anchor="w",
+                    font=("Segoe UI", 11),
+                    text_color=status_color,
+                ).grid(row=row, column=2, padx=10, pady=6, sticky="ew")
+
+        def set_filters(value):
+            for filter_var in filter_vars.values():
+                filter_var.set(value)
+            render_list()
+
+        def set_visible_selections(value):
+            for index in visible_indexes():
+                desktop_vars[index].set(value)
+            render_list()
+
+        ctk.CTkButton(
+            filter_actions,
+            text="All Categories",
+            command=lambda: set_filters(True),
+            width=95,
+            height=26,
+            font=("Segoe UI", 11),
+            fg_color="#34495e",
+            hover_color="#2c3e50",
+        ).pack(side="left", padx=2)
+        ctk.CTkButton(
+            filter_actions,
+            text="Clear Filters",
+            command=lambda: set_filters(False),
+            width=90,
+            height=26,
+            font=("Segoe UI", 11),
+            fg_color="#34495e",
+            hover_color="#2c3e50",
+        ).pack(side="left", padx=2)
+        for index, folder in enumerate(folders):
             ctk.CTkCheckBox(
-                list_frame,
-                text=item["name"],
-                variable=desktop_var,
-                font=("Segoe UI", 12),
+                categories_frame,
+                text=folder,
+                variable=filter_vars[folder],
+                command=render_list,
+                font=("Segoe UI", 11),
                 fg_color="#3498db",
                 hover_color="#2980b9",
-            ).grid(row=row, column=0, padx=10, pady=6, sticky="ew")
-            ctk.CTkLabel(
-                list_frame,
-                text=f"→ {item['folder']}/",
-                anchor="w",
-                font=("Segoe UI", 12),
-                text_color="#3498db",
-            ).grid(row=row, column=1, padx=10, pady=6, sticky="ew")
-            ctk.CTkLabel(
-                list_frame,
-                text=status,
-                anchor="w",
-                font=("Segoe UI", 11),
-                text_color=status_color,
-            ).grid(row=row, column=2, padx=10, pady=6, sticky="ew")
+            ).grid(row=index // 3, column=index % 3, padx=5, pady=2, sticky="w")
+
+        render_list()
 
         options = ctk.CTkFrame(dialog, fg_color="transparent")
         options.pack(fill="x", padx=24, pady=(0, 8))
@@ -1729,6 +1883,25 @@ class AssistantGUI(ctk.CTk):
 
         ctk.CTkButton(
             buttons,
+            text="Deselect Filtered",
+            command=lambda: set_visible_selections(False),
+            fg_color="#34495e",
+            hover_color="#2c3e50",
+            width=130,
+            height=38,
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            buttons,
+            text="Select Filtered",
+            command=lambda: set_visible_selections(True),
+            fg_color="#3498db",
+            hover_color="#2980b9",
+            width=130,
+            height=38,
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            buttons,
             text="Cancel",
             command=cancel_preview,
             fg_color="#34495e",
@@ -1748,6 +1921,8 @@ class AssistantGUI(ctk.CTk):
 
     def cleaning_logic(self):
         """Cleaning operation logic"""
+        freed_bytes = 0
+        cleanup_completed = False
         try:
             self.after(0, lambda: self.log_box.delete("0.0", "end"))
             self.log("🧹 Starting cleanup...\n", "#3498db")
@@ -1763,8 +1938,11 @@ class AssistantGUI(ctk.CTk):
                         count = 0
                         try:
                             for file in os.listdir(path):
-                                if safe_delete(os.path.join(path, file)):
+                                item_path = os.path.join(path, file)
+                                item_size = calculate_path_size(item_path)
+                                if safe_delete(item_path):
                                     count += 1
+                                    freed_bytes += item_size
                             self.log(f"   ✓ {name}: {count} items deleted")
                         except PermissionError:
                             self.log(f"   ⚠️ {name}: Access denied")
@@ -1782,9 +1960,15 @@ class AssistantGUI(ctk.CTk):
                         self.log(f"   • {name}: skipped by user")
                         continue
                     if os.path.exists(path):
-                        count = clean_chromium_profile(path, self.log, advanced=advanced_browser)
+                        count, browser_freed = clean_chromium_profile(
+                            path, self.log, advanced=advanced_browser
+                        )
+                        freed_bytes += browser_freed
                         if count > 0:
-                            self.log(f"   ✓ {name}: {count} items cleaned")
+                            self.log(
+                                f"   ✓ {name}: {count} items cleaned "
+                                f"({format_size(browser_freed)} freed)"
+                            )
                 
                 # Firefox (different structure)
                 if (
@@ -1796,8 +1980,11 @@ class AssistantGUI(ctk.CTk):
                         for root, dirs, files in os.walk(FIREFOX_PATH, topdown=False):
                             for n in files + dirs:
                                 if any(x.lower() == n.lower() or x.lower() in n.lower() for x in browser_clean_list):
-                                    if safe_delete(os.path.join(root, n)):
+                                    item_path = os.path.join(root, n)
+                                    item_size = calculate_path_size(item_path)
+                                    if safe_delete(item_path):
                                         ff_count += 1
+                                        freed_bytes += item_size
                         if ff_count > 0:
                             self.log(f"   ✓ Firefox: {ff_count} items cleaned")
                     except Exception:
@@ -1887,6 +2074,7 @@ class AssistantGUI(ctk.CTk):
                 bin_size, bin_count = recycle_bin_size()
                 if bin_count > 0:
                     if empty_recycle_bin(self.log):
+                        freed_bytes += bin_size
                         self.log(f"   ✓ {int(bin_count)} items deleted ({format_size(bin_size)})")
                 else:
                     self.log(f"   ℹ️ {trash_name} is already empty")
@@ -1894,14 +2082,19 @@ class AssistantGUI(ctk.CTk):
 
             self.log("=" * 45, "#2ecc71")
             self.log("✅ OPERATION COMPLETED SUCCESSFULLY!", "#2ecc71")
+            self.log(f"💾 TOTAL SPACE FREED: {format_size(freed_bytes)}", "#2ecc71")
             self.log("=" * 45, "#2ecc71")
+            cleanup_completed = True
             
         except Exception as e:
             self.log(f"❌ Error occurred: {e}", "#e74c3c")
         finally:
             self.operation_in_progress = False
             self.after(0, lambda: self.set_buttons_state(True))
-            self.after(0, self._invalidate_scan)
+            if cleanup_completed:
+                self.after(0, lambda: self._finish_cleanup(freed_bytes))
+            else:
+                self.after(0, self._invalidate_scan)
 
     def undo_last_desktop_organization(self):
         """Restore files moved by the most recent desktop organization."""

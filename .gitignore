@@ -17,6 +17,7 @@ version_info.txt
 
 # Source images (not needed, only ico is used)
 *.png
+!neatify-logo.png
 
 # Python cache
 __pycache__/

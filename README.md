@@ -2,7 +2,7 @@
 
 A cross-platform PC cleanup and desktop organizer tool.
 
-**Current version:** v1.3.0
+**Current version:** v1.3.1
 
 Open the in-app **About** panel for version information and the [Neatify GitHub repository](https://github.com/hayalimnet/Neatify).
 
@@ -13,11 +13,12 @@ Open the in-app **About** panel for version information and the [Neatify GitHub 
 - 🗂️ **System Cleanup** - Lets users choose individual temp, cache, prefetch, and log targets
 - 🌐 **Safe Browser Cleanup** - Lets users choose browsers individually and clears disposable cache without removing login data by default
 - ⚠️ **Advanced Browser Cleanup** - Optional deeper cleanup with a clear site-data warning
-- 🖥️ **Desktop Organizer** - Previews file moves, handles name conflicts safely, and supports undo (shortcuts organized into dedicated `Shortcuts/` folder)
+- 🖥️ **Desktop Organizer** - Filter the move preview by category, select every filtered file at once, handle name conflicts safely, and undo the latest organization (shortcuts are organized into a dedicated `Shortcuts/` folder)
+- 💾 **Measured Cleanup Results** - Shows the actual total space freed after cleanup completes
 - 🖼️ **Wallpaper Changer** - Downloads HD wallpapers from Unsplash
 - 🗑️ **Empty Trash** - One-click empty (Recycle Bin on Windows, Trash on Linux)
 
-Before analysis, choose the cleanup categories with the checkboxes in the options panel. After analysis, the embedded `Cleanup Details` panel lets users include or exclude individual cleanup targets before the confirmation preview. Desktop organization also provides a file-by-file move preview, optional conflict renaming, and an undo action. A fresh scan is required if the main cleanup selection changes.
+Before analysis, choose the cleanup categories with the checkboxes in the options panel. After analysis, the embedded `Cleanup Details` panel lets users include or exclude individual cleanup targets before the confirmation preview. Desktop organization also provides a file-by-file move preview with category filters (such as Shortcuts and Music), filtered bulk selection, optional conflict renaming, and an undo action. A fresh scan is required if the main cleanup selection changes.
 
 ## Installation
 

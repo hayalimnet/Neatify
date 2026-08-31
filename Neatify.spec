@@ -5,7 +5,7 @@ a = Analysis(
     ['neatify.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('neatify.ico', '.'), ('neatify-logo.png', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
